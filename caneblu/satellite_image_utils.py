@@ -19,8 +19,8 @@ from rasterio.merge import merge
 from rasterio.mask import mask
 
 # Local import
-import composite_indices as ci
-import utils
+from . import utils
+from . import composite_indices as ci
 
 
 def gray_to_rgb(image_data, color_map=None):
