@@ -14,13 +14,12 @@ from sentinelhub import (
     SentinelHubCatalog,
     SentinelHubRequest,
     SHConfig,
-    bbox_to_dimensions,
-)
+    bbox_to_dimensions)
 
-import utils
-import composite_indices as ci
-import satellite_image_utils as siu
-from evalscript_generator_utils import get_evalscript
+from . import utils
+from . import composite_indices as ci
+from . import satellite_image_utils as siu
+from .evalscript_generator_utils import get_evalscript
 
 
 class SentinelHub:
