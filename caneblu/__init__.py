@@ -26,7 +26,6 @@ _SUBMODULES = {
     "utils",
 }
 
-
 def __getattr__(name: str):
     # Lazy import submodules on first attribute access
     if name in _SUBMODULES:
@@ -44,7 +43,8 @@ def __dir__():
 def _detect_version() -> str:
     # Try to obtain version from installed package metadata
     # First try the current package name, then common variants
-    candidates = {__name__, "caneblu") 
+    candidates = {__name__, "caneblu"}
+
     for candidate in candidates:
         try:
             return _pkg_version(candidate)
