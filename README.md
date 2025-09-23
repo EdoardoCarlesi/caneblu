@@ -7,20 +7,6 @@ Utilities for working with satellite and geospatial data. This package provides 
 - Lightweight imports with lazy-loading submodules
 - Designed to be extended and integrated into larger pipelines
 
-
-Table of contents
------------------
-
-- Features_
-- Installation_
-- Quick start_
-- Modules_
-- Project layout_
-- Compatibility_
-- Contributing_
-- License_
-
-
 Features
 --------
 
@@ -34,24 +20,6 @@ Features
 Installation
 ------------
 
-From PyPI (recommended once published):
-
-.. code-block:: bash
-
-   pip install caneblu
-
-From source (in the repository root):
-
-.. code-block:: bash
-
-   pip install .
-
-Install in editable/development mode:
-
-.. code-block:: bash
-
-   pip install -e .
-
 Minimum Python version:
 
 - Python 3.10+
@@ -62,28 +30,11 @@ Quick start
 
 Import the package and submodules as needed:
 
-.. code-block:: python
-
    import caneblu as cb
-
-   # Submodules are available under the package namespace
-   # Access a submodule explicitly:
-   # sdu.composite_indices
-   # sdu.geocoding
-   # sdu.harvester
-   # sdu.satellite_image_utils
-   # sdu.utils
 
 Import specific submodules directly:
 
-.. code-block:: python
-
    from caneblu import geocoding, composite_indices
-
-   # Use submodule functionality as appropriate for your workflow.
-   # (Refer to inline docstrings in each module for details.)
-
-Note: Submodules are imported lazily the first time you access them from the package namespace.
 
 
 Modules
@@ -101,8 +52,6 @@ Each module includes docstrings with function-level usage notes.
 Project layout
 --------------
 
-.. code-block:: text
-
    caneblu/
      setup.py
      LICENSE
@@ -110,28 +59,7 @@ Project layout
 
 When installed, the package is importable as ``caneblu``.
 
-
-Compatibility
--------------
-
-- Python 3.8+
-- Platform: OS-independent
-
-
-Contributing
-------------
-
-Contributions are welcome!
-
-- Fork the repository
-- Create a feature branch
-- Add/update tests and docs where applicable
 - Submit a pull request describing your changes
-
-Before submitting, please ensure:
-
-- Code is formatted and linted consistently
-- New functionality includes minimal examples or docstrings
 
 
 License
