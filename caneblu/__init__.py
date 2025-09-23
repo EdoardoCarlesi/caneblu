@@ -24,6 +24,8 @@ _SUBMODULES = {
     "harvester",
     "satellite_image_utils",
     "utils",
+    "evalscript_generator_utils",
+    "open_meteo_api",
 }
 
 def __getattr__(name: str):
