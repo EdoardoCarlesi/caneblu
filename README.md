@@ -1,4 +1,4 @@
-atdat-utils
+CANEBLU
 ============
 
 Utilities for working with satellite and geospatial data. This package provides a set of modular helpers for processing imagery, building composites and indices, basic geocoding workflows, harvesting pipelines, and general utilities.
