@@ -30,11 +30,11 @@ Quick start
 
 Import the package and submodules as needed:
 
-   import caneblu as cb
+   ``import caneblu as cb``
 
 Import specific submodules directly:
 
-   from caneblu import geocoding, composite_indices
+   ``from caneblu import geocoding, composite_indices``
 
 
 Modules
