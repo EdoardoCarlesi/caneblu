@@ -124,11 +124,8 @@ class SentinelHub:
             config=self.config,
         )
 
-        #print(self.catalog.get_collections())
         string = self.catalog.get_collections()
         json_str = json.dumps(string, indent=4)
-        #print(json_str)
-
         self.data = self.sentinel_request.get_data()
 
         # To avoid weird array dimensions later on

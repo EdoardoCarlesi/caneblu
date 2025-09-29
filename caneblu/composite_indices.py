@@ -24,6 +24,17 @@ def NDWI(img: np.array, i_green: int, i_nir: int) -> np.array:
     return ndwi
 
 
+# TODO
+def MNDWI(img: np.array, i_green: int, i_swir: int) -> np.array:
+    """MODIFIED Normalized Difference Water Index"""
+
+    green = img[:, :, i_green].astype(float)
+    swir = img[:, :, i_swir].astype(float)
+    ndwi = (green - swir) / (swir + green + eps)
+
+    return ndwi
+
+
 def NBR(img: np.array, i_swir: int, i_nir: int) -> np.array:
     """Normalized Burned Ratio"""
 
