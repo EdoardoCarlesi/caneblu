@@ -1,14 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import json
 import os
-import threading
 import time
-from fontTools.mtiLib import bucketizeRules
-
-
-##########################################################
-# DEFINE ALL FILENAMES HERE AS FUNCTIONS FOR CONSISTENCY #
-##########################################################
 
 
 def npy_filename(base_path, index, date, res=60):
@@ -19,11 +12,6 @@ def npy_filename(base_path, index, date, res=60):
 def npy_mosaic_filename(base_path, index, date, res=60):
     path = f"{base_path}_{index:04}_{date}_{res}_mosaic.npy"
     return path
-
-
-######################################################################
-################## OTHER FUNCTIONS ###################################
-######################################################################
 
 
 def remove_duplicates_from_list(data):

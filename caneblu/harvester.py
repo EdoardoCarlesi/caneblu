@@ -184,9 +184,9 @@ class SentinelHub:
             this_time_interval = (day_before, day_after)
             
             if mosaic:
-                output_file = utils.npy_mosaic_filename(base_path, index, date)
+                output_file = utils.npy_mosaic_filename(base_path, index, date, res=resolution)
             else:
-                output_file = utils.npy_filename(base_path, index, date)
+                output_file = utils.npy_filename(base_path, index, date, res=resolution)
             
             if os.path.exists(output_file):
                 print(f"File {output_file} found")
