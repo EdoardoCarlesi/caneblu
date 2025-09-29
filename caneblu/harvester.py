@@ -146,12 +146,6 @@ class SentinelHub:
     ) -> tuple:
         """
         Wrapper to extract all the historical data from a province, once it's divided into squares
-        :param: res, the resolution (in meters) for this
-        :param: data_type
-        :param: prov
-        :param: time_interval
-        :param: n_square_init
-        :param: n_square_end
         """
 
         # Local data paths containing necessary data. Define all the variables read from the cfg file here.
@@ -159,8 +153,6 @@ class SentinelHub:
         cloud_cover = int(cloud_cover)
         mosaic = bool(mosaic)
         time_span = int(time_span)
-
-        print(f"Downloading tile: {index} for {prov}, {time_interval}")
 
         # Generate a sentinel hub object for the kind of data required
         self.all_data = []
@@ -192,16 +184,16 @@ class SentinelHub:
             this_time_interval = (day_before, day_after)
             
             if mosaic:
-                output_file = utils.npy_mosaic_filename(prov, index, date)
+                output_file = utils.npy_mosaic_filename(base_path, index, date)
             else:
-                output_file = utils.npy_filename(prov, index, date)
+                output_file = utils.npy_filename(base_path, index, date)
             
             if os.path.exists(output_file):
                 print(f"File {output_file} found")
                 data = np.load(output_file)
 
             else:
-                print(f"Harvesting Sentinel Hub data for {prov} on {formatted_date}")
+                print(f"Harvesting Sentinel Hub data for {base_path} on {formatted_date}")
                 data = self.request_box(
                     bbox,
                     data_type=data_type,
@@ -317,8 +309,6 @@ def param_start(prov):
 
     (ndvis, ndmis, rgbs_gray, nbrs) = format_for_fire_risk(data)
     data_df = siu.create_features(ndvis, ndmis, rgbs_gray, nbrs, n_dates=n_dates)
-
-    print(data_df.head())
 
 
 if __name__ == "__main__":
