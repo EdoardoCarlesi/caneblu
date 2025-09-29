@@ -18,7 +18,6 @@ HOURS_CACHE = 12 # Meteo API calls (make a new one if the data is older than thi
 TMP_PATH = "tmp/" # For caching data mainly
 LOG_PATH = "logs/" # For the logging files
 DATA_PATH = 'data/' # Data necessary to run the application
-#MODEL_PATH = "models/FireRisk_RF_v0.pkl"  # Path to the pre-trained ML model
 MODEL_PATH = "models/RF_thr0.1_estimators100_depth10_samples20_dates_2_acc0.85.pkl"  # Path to the pre-trained ML model
 FRI_OUTPUT_PATH = 'output/FRI/'  # Fire Risk Index output folder
 ML_OUTPUT_PATH = "output/ML/"  # Fire Risk Index ML output folder
@@ -40,17 +39,17 @@ def shp_square_filename(prov, size=3600):
 
 
 def npy_filename(prov, index, date, res=60):
-    path = f"{utils.MSI_OUTPUT_PATH}{prov}_{index:04}_{date}_{res}.npy"
+    path = f"{MSI_OUTPUT_PATH}{prov}_{index:04}_{date}_{res}.npy"
     return path
 
     
 def npy_mosaic_filename(prov, index, date):
-    path = f"{utils.MSI_OUTPUT_PATH}{prov}_{index:04}_{date}_{res}_mosaic.npy"
+    path = f"{MSI_OUTPUT_PATH}{prov}_{index:04}_{date}_{res}_mosaic.npy"
     return path
 
 
 def geotiff_square_ml_filename(prov, index, res=60, size=3600):
-    path = f"{utils.ML_OUTPUT_PATH}{prov}_{index:04}_res{resolution}m_risk_map_ml_{size}.tiff"
+    path = f"{ML_OUTPUT_PATH}{prov}_{index:04}_res{resolution}m_risk_map_ml_{size}.tiff"
     return path
 
 
