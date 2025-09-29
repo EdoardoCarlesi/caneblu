@@ -134,7 +134,7 @@ class SentinelHub:
     def download_roi(
         self,
         bbox,
-        prov,
+        base_path='tmp/area_',
         index=0,
         resolution=10,
         time_interval=("2024-06-01", "2024-07-30"),
@@ -218,78 +218,6 @@ class SentinelHub:
             self.all_data.append(data)
 
         return self.all_data, self.all_output_files
-
-
-def sentinel_download_province(
-    resolution=10,
-    prov="CT",
-    side="3600",
-    time_interval=("2024-06-01", "2024-07-30"),
-    square_init=0,
-    square_end=-1,
-    cloud_cover=0.1,
-    mosaic=False,
-    time_span=10,
-    save_numpy=True,
-    data_type="all_bands_10m",
-) -> tuple:
-    """
-    Wrapper to extract all the historical data from a province, once it's divided into squares
-    :param: res, the resolution (in meters) for this
-    :param: data_type
-    :param: prov
-    :param: date_start
-    :param: date_end
-    :param: n_square_init
-    :param: n_square_end
-    """
-
-    print(f"Harvesting {prov} data from Sentinel Hub...")
-
-    # Local data paths containing necessary data. Define all the variables read from the cfg file here.
-    squares_file = f"{utils.DATA_PATH}{prov}_squares_{side}.shp"
-    squares_gdf = gpd.read_file(squares_file)
-
-    resolution = int(resolution)
-    square_init = int(square_init)
-    square_end = int(square_end)
-    cloud_cover = float(cloud_cover)
-    mosaic = bool(mosaic)
-    time_span = int(time_span)
-
-    # Generate a sentinel hub object for the kind of data required
-    sh = SentinelHub()
-
-    # By default, retrieve all the squares for the given province
-    if square_end == 0:
-        square_end = len(squares_gdf)
-
-    # In case we want to analyze only a subset of the surface, i.e. not all squares
-    squares = squares_gdf.iloc[int(square_init) : int(square_end)]
-
-    # Always good to know
-    print(
-        f"Province {prov} is divided into {len(squares)} squares. Retrieving a total of {square_end-square_init} squares."
-    )
-
-    # Loop on the squares that cover up the province surface
-    for num, square in enumerate(squares["geometry"]):
-
-        # For consistency throughout the program, the filename is generated in the data_io module
-        all_data, all_output_files = sh.download_roi(
-            square,
-            prov=prov,
-            index=num,
-            time_interval=time_interval,
-            cloud_cover=cloud_cover,
-            resolution=resolution,
-            mosaic=mosaic,
-            data_type=data_type,
-            time_span=time_span,
-            save_numpy=save_numpy
-        )
-
-    return all_data, all_output_files
 
 
 def format_for_fire_risk(data, n_dates=3) -> tuple:

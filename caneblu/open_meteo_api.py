@@ -14,10 +14,7 @@ from sklearn.ensemble import (
     RandomForestRegressor,
 )
 from sklearn.model_selection import train_test_split
-
 import utils
-
-# How many hours should we wait before updating the temporary files storing the meteo data for the different areas
 
 
 class OpenMeteoAPI:
@@ -33,7 +30,7 @@ class OpenMeteoAPI:
         n_days=30,
         date_end=None,
         logger=None,
-        prov="CT",
+        prov="AREA",
         index=0,
         side=3600,
     ):
@@ -219,10 +216,10 @@ class OpenMeteoAPI:
 
         return self.data["daily"]["humidity"]
 
-    def forecast(self, forecast_days=1):
+    def forecast(self, tmp_path='tmp/', forecast_days=1):
         """Simple wrapper for the weather forecast API call"""
 
-        api_tmp = f"{utils.TMP_PATH}{self.prov}_{self.index}_{self.side}_forecast_cache.json"
+        api_tmp = f"{tmp_path}{self.prov}_{self.index}_{self.side}_forecast_cache.json"
 
         if os.path.exists(api_tmp):
             if utils.is_file_older_than(api_tmp, hours=utils.HOURS_CACHE):
@@ -250,8 +247,8 @@ class OpenMeteoAPI:
         return self.data["forecast"]
 
 
-def test():
-    """Simple test function"""
+def main():
+    """Simple test setting"""
 
     lat = 14.63
     lon = 38.06
@@ -259,10 +256,7 @@ def test():
     n_days = 20
     oma = OpenMeteoAPI(lat=lat, lon=lon, date_end=date_end, n_days=n_days)
 
-# Another simple test function
-def apply_dataset():
-    """Get the full dataset of burned locations and get the hourly data for the days before"""
-    
+    #Get the full dataset of burned locations and get the hourly data for the days before
     locations = "/home/edoardo/DATA/SEFORE/dataset_info.csv"
     loc_df = pd.read_csv(locations)
     omas = []
@@ -274,15 +268,7 @@ def apply_dataset():
             )
         )
 
-    # print(omas)
-    print(omas[4].history())
-
-
-def main():
-    """Main function, used for testing"""
-
-    apply_dataset()
-    # test()
+    return omas
 
 
 if __name__ == "__main__":
