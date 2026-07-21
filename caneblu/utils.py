@@ -143,6 +143,9 @@ def utc_to_time(date_utc: int) -> tuple:
     return datetime.fromtimestamp(date_utc)
 
 
+HOURS_CACHE = 1
+
+
 if __name__ == "__main__":
     """
     Execute stuff from here
