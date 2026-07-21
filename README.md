@@ -20,9 +20,19 @@ Features
 Installation
 ------------
 
-Minimum Python version:
+Requires Python 3.10+.
 
-- Python 3.10+
+Install from the repository root:
+
+.. code:: bash
+
+   pip install -e .
+
+Or with pip from GitHub:
+
+.. code:: bash
+
+   pip install git+https://github.com/EdoardoCarlesi/caneblu.git
 
 
 Quick start
@@ -40,10 +50,12 @@ Import specific submodules directly:
 Modules
 -------
 
-- ``composite_indices``: Helpers for building image composites and indices
+- ``composite_indices``: Helpers for building image composites and indices (NDVI, NDWI, NBR, NDMI, etc.)
 - ``geocoding``: Geocoding and coordinate utilities
-- ``harvester``: Utilities for harvesting/orchestrating data workflows
-- ``satellite_image_utils``: Common imagery helpers (I/O, transforms, etc.)
+- ``harvester``: Sentinel Hub data harvesting and orchestration
+- ``satellite_image_utils``: Common imagery helpers (GeoTIFF I/O, transforms, feature creation)
+- ``evalscript_generator_utils``: Sentinel Hub evalscript generation
+- ``open_meteo_api``: Open-Meteo weather archive and forecast API wrapper
 - ``utils``: Shared helpers used across the package
 
 Each module includes docstrings with function-level usage notes.
