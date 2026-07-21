@@ -18,7 +18,6 @@ setup(
     license="MIT",
     # Map the repository root to the 'satdat_utils' package
     packages=["caneblu"],
-    package_dir={"caneblu": "."},
     python_requires=">=3.10",
     install_requires=[
         "earthengine-api>=1.1.3",
