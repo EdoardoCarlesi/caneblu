@@ -184,7 +184,6 @@ class SentinelHub:
 
         # Local data paths containing necessary data. Define all the variables read from the cfg file here.
         resolution = int(resolution)
-        cloud_cover = int(cloud_cover)
         mosaic = bool(mosaic)
         time_span = int(time_span)
 
