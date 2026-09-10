@@ -676,43 +676,33 @@ def crop_tiff_with_polygon(input_path, output_path, polygon, polygon_crs='EPSG:4
             return False
 
 
-def crop_province(prov, size=3600, res=60):
+def crop_polygon(polygon, base_filename, size=3600, res=60):
  
-    file_provs = utils.PROVINCE_FILE_PATH
-    gdf = gpd.read_file(file_provs)
-    gdf = gdf.to_crs('EPSG:4326')
-
-    # FIXME: this only saves the mainland information and neglects the small islands which should de saved as separate files
-    file_tiff = utils.geotiff_ml_filename(prov) 
-    file_png = utils.png_ml_filename(prov)
-    file_tiff_clip = utils.geotiff_clip_ml_filename(prov)
-    file_png_clip = utils.png_clip_ml_filename(prov)
+    file_tiff = f"{base_filename}.tiff" 
+    file_png = f"{base_filename}.png" 
+    file_tiff_clip = f"{base_filename}_crop.tiff" 
+    file_png_clip = f"{base_filename}_crop.png" 
     
-    gdf_pv = gdf[gdf['SIGLA'] == prov]
-    crop = gdf_pv['geometry'].iloc[0]
-
-    if isinstance(crop, Polygon):
-        has_edges = crop_tiff_with_polygon(file_tiff, file_tiff_clip, crop)
+    if isinstance(polygon, Polygon):
+        has_edges = polygon_tiff_with_polygon(file_tiff, file_tiff_clip, polygon)
         
         if has_edges:
-            edges = crop.bounds
+            edges = polygon.bounds
 
-    elif isinstance(crop, MultiPolygon):
-        for i, p in enumerate(crop.geoms):
-            has_edges = crop_tiff_with_polygon(file_tiff, file_tiff_clip, p)
+    elif isinstance(polygon, MultiPolygon):
+        for i, p in enumerate(polygon.geoms):
+            has_edges = polygon_tiff_with_polygon(file_tiff, file_tiff_clip, p)
                 
             if has_edges:
                 edges = p.bounds
 
     tiff_to_png(file_tiff_clip, file_png_clip)
-    print(prov, edges)
+    
     return edges 
 
 
 if __name__ == "__main__":
     """ Wrap """
 
-    for prov in utils.provs:
-        crop_province(prov)
-
+    pass
 
