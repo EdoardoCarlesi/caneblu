@@ -16,6 +16,8 @@ from sentinelhub import (
     SHConfig,
     bbox_to_dimensions)
 
+from shapely.geometry import Polygon
+
 from . import utils
 from . import composite_indices as ci
 from . import satellite_image_utils as siu
@@ -34,6 +36,8 @@ class SentinelHub:
         crs="EPSG:4326",
         credentials_file_json="json/.sentinelhub_credentials.json",
         data_collection="Sentinel2L1C",
+        client_id=None,
+        client_secret=None,
     ):
 
         self.crs = crs
@@ -46,12 +50,17 @@ class SentinelHub:
             self.data_collection = DataCollection.SENTINEL2_L1C
 
         self.config = SHConfig()
-        self.config_auto()
+        self.config_auto(client_id, client_secret)
         self.config.instance_id = instance_id
         self.config.max_download_attempts = max_download_attempts
         self.catalog = SentinelHubCatalog(config=self.config)
 
-    def config_auto(self):
+    def config_auto(self, client_id=None, client_secret=None):
+
+        if client_id and client_secret:
+            self.config.sh_client_id = client_id
+            self.config.sh_client_secret = client_secret
+            return
 
         try:
             with open(self.cred_file, "r") as credentials:
@@ -62,6 +71,31 @@ class SentinelHub:
         except FileNotFoundError:
             print("Error: sentinelhub_credentials.json file not found.")
 
+    def _to_bbox(self, bounding_box):
+        """Convert various bounding box formats to a SentinelHub BBox object.
+
+        Accepts:
+        - BBox: returned as-is
+        - Polygon: extracts bounds and creates BBox
+        - tuple/list of 4 values: (min_lon, min_lat, max_lon, max_lat)
+        - tuple/list of 5+ values (polygon coords): uses first and last point's min/max
+        """
+        if isinstance(bounding_box, BBox):
+            return bounding_box
+
+        if isinstance(bounding_box, Polygon):
+            return BBox(bounding_box.bounds, crs=self.crs)
+
+        if isinstance(bounding_box, (tuple, list)):
+            if len(bounding_box) == 4:
+                return BBox(bounding_box, crs=self.crs)
+            if len(bounding_box) >= 4:
+                lons = [p[0] for p in bounding_box]
+                lats = [p[1] for p in bounding_box]
+                return BBox((min(lons), min(lats), max(lons), max(lats)), crs=self.crs)
+
+        raise TypeError(f"Unsupported bounding box type: {type(bounding_box)}")
+
     def get_raw_bands(self, script="all_bands_10m"):
         return get_evalscript(script)
 
@@ -69,7 +103,7 @@ class SentinelHub:
         self, bounding_box, time_interval=("2020-06-12", "2020-06-13"), cloud_cover=0.2
     ):
 
-        bbox = BBox(bounding_box.bounds, crs=self.crs)
+        bbox = self._to_bbox(bounding_box)
         search_iterator = self.catalog.search(
             self.data_collection,
             bbox=bbox,
@@ -95,7 +129,7 @@ class SentinelHub:
         time_interval=("2020-06-12", "2020-06-13"),
     ):
 
-        bbox = BBox(bounding_box.bounds, crs=self.crs)
+        bbox = self._to_bbox(bounding_box)
         size = bbox_to_dimensions(bbox, resolution=resolution)
         script = self.get_raw_bands(script=data_type)
 
