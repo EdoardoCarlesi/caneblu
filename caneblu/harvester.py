@@ -64,9 +64,17 @@ class SentinelHub:
 
     def config_auto(self, client_id=None, client_secret=None):
 
+        # Order of precedence: arguments > environment variables > credentials JSON file
         if client_id and client_secret:
             self.config.sh_client_id = client_id
             self.config.sh_client_secret = client_secret
+            return
+
+        env_id = os.environ.get("SH_CLIENT_ID")
+        env_secret = os.environ.get("SH_CLIENT_SECRET")
+        if env_id and env_secret:
+            self.config.sh_client_id = env_id
+            self.config.sh_client_secret = env_secret
             return
 
         try:
@@ -76,12 +84,10 @@ class SentinelHub:
                 self.config.sh_client_secret = cred["CLIENT_SECRET"]
 
         except FileNotFoundError:
-            # SHConfig() already reads SH_CLIENT_ID / SH_CLIENT_SECRET from the environment
-            if not self.config.sh_client_id:
-                print(
-                    "Warning: no Sentinel Hub credentials. Pass client_id/client_secret, "
-                    "set SH_CLIENT_ID and SH_CLIENT_SECRET, or create the credentials file."
-                )
+            print(
+                "Warning: no Sentinel Hub credentials. Pass client_id/client_secret, "
+                "set SH_CLIENT_ID and SH_CLIENT_SECRET, or create the credentials file."
+            )
 
     def _to_bbox(self, bounding_box):
         """Convert various bounding box formats to a SentinelHub BBox object.

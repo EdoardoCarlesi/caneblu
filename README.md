@@ -63,11 +63,15 @@ print(caneblu.__version__)
 ## Credentials
 
 Only the Sentinel Hub downloads (`harvester`) need credentials. Get a client ID and secret from the
-Sentinel Hub dashboard, then provide them in one of three ways, in this order of precedence:
+Sentinel Hub dashboard, then provide them in one of three ways. When more than one is present, the
+first that applies wins:
 
 1. Arguments: `SentinelHub(client_id="...", client_secret="...")`
-2. Environment variables (recommended): `SH_CLIENT_ID` and `SH_CLIENT_SECRET`
-3. A JSON file (default path `json/.sentinelhub_credentials.json`, relative to the working directory):
+2. Environment variables (recommended): `SH_CLIENT_ID` and `SH_CLIENT_SECRET`. Both must be set.
+3. A JSON file (default path `json/.sentinelhub_credentials.json`, relative to the working directory),
+   used only when neither of the above is provided.
+
+The credentials file format:
 
 ```json
 {

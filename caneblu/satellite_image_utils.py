@@ -558,11 +558,12 @@ def save_numpy_to_geotiff(array, output_file, roi, crs="EPSG:4326"):
     :param crs: Coordinate Reference System (default is EPSG:4326).
     """
 
-    pixel_x, pixel_y, dim = array.shape[0], array.shape[1], array.shape[2]
+    # array is (height, width, bands); from_bounds expects (width, height)
+    height, width, dim = array.shape[0], array.shape[1], array.shape[2]
     min_x, min_y, max_x, max_y = roi.bounds
 
     # Create an affine transform for georeferencing
-    transform = from_bounds(min_x, min_y, max_x, max_y, pixel_x, pixel_y)
+    transform = from_bounds(min_x, min_y, max_x, max_y, width, height)
     
     # Define metadata for the GeoTIFF
     meta = {

@@ -352,6 +352,7 @@ def generate_squares_for_province(prov: str, side: int, geo_file=None) -> gpd.Ge
     """
     geo_file = geo_file or DEFAULT_PROVINCE_FILE
     file_out = f"data/{prov}_squares_{side}.shp"
+    os.makedirs("data", exist_ok=True)
 
     if not os.path.exists(file_out):
         gdf = gpd.read_file(geo_file)
