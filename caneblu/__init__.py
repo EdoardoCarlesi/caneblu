@@ -13,11 +13,11 @@ Public submodules:
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
-__version__ = "0.1.0"
 __author__ = 'Edoardo Carlesi'
 __credits__ = 'Cane colorato ma tendenzialmente blu'
 
-# List of lazily-loadable submodules
+# List of lazily-loadable submodules. Import them with `from caneblu import geocoding`
+# or `import caneblu.geocoding`; nothing heavy is imported until first use.
 _SUBMODULES = {
     "composite_indices",
     "geocoding",
@@ -27,6 +27,8 @@ _SUBMODULES = {
     "evalscript_generator_utils",
     "open_meteo_api",
 }
+
+__all__ = sorted(_SUBMODULES)
 
 def __getattr__(name: str):
     # Lazy import submodules on first attribute access

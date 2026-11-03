@@ -6,15 +6,10 @@ import arrow
 import numpy as np
 import pandas as pd
 import requests
-import sklearn.linear_model as lm
-import sklearn.metrics as met
-from sklearn.ensemble import (
-    AdaBoostRegressor,
-    GradientBoostingRegressor,
-    RandomForestRegressor,
-)
-from sklearn.model_selection import train_test_split
+
 from . import utils
+
+__all__ = ["OpenMeteoAPI"]
 
 
 class OpenMeteoAPI:
@@ -58,10 +53,11 @@ class OpenMeteoAPI:
         self.n_days = n_days
         self.logger = logger
 
-        if type(date_end) == str:
-            self.date_end = arrow.get(date_end)
-        elif date_end == None:
+        if date_end is None:
             self.date_end = arrow.utcnow()
+        else:
+            # Accepts "YYYY-MM-DD" strings, datetimes or arrow objects
+            self.date_end = arrow.get(date_end)
 
         self.date_start = self.date_end.shift(days=-self.n_days)
 
@@ -107,6 +103,8 @@ class OpenMeteoAPI:
             api_call = f"https://archive-api.open-meteo.com/v1/{call_type}?latitude={self.lat}&longitude={self.lon}&start_date={date_start}&end_date={date_end}&{frequency}="
         elif call_type == "forecast":
             api_call = f"https://api.open-meteo.com/v1/{call_type}?latitude={self.lat}&longitude={self.lon}&forecast_days={forecast_days}&{frequency}="
+        else:
+            raise ValueError(f"call_type must be 'archive' or 'forecast', got {call_type!r}.")
 
         if frequency == "hourly":
             for val in self.hourly_values:
@@ -130,11 +128,11 @@ class OpenMeteoAPI:
                 )
                 print(f"Restarting after a {pause}s pause...")
             else:
-                logger.info(
+                self.logger.info(
                     f"Error: The request to {api_call} timed out after {timeout} seconds."
                 )
-                logger.info(f"Restarting after a {pause}s pause...")
-                
+                self.logger.info(f"Restarting after a {pause}s pause...")
+
             time.sleep(pause)
             self.call_api(
                 frequency=frequency,
@@ -142,15 +140,14 @@ class OpenMeteoAPI:
                 date_start=date_start,
                 date_end=date_end,
                 forecast_days=forecast_days,
+                pause=pause,
+                timeout=timeout,
             )
 
         return self.data[frequency]
 
     def history(self):
         """Recover the hourly weather history"""
-
-        n_features = len(self.daily_values)
-        n_days_train = self.n_days
 
         date_train_end = self.date_end
         date_train_start = self.date_start
@@ -194,6 +191,10 @@ class OpenMeteoAPI:
             features[:, i] = hourly_df_max[val].values
 
         target = hourly_df_max[self.hourly_values[-1]].values
+
+        # Imported here: scikit-learn is only needed for humidity recovery
+        from sklearn.ensemble import RandomForestRegressor
+        from sklearn.model_selection import train_test_split
 
         # Fit a model on the fly
         model = RandomForestRegressor(max_depth=4, n_estimators=60)
@@ -247,31 +248,3 @@ class OpenMeteoAPI:
         return self.data["forecast"]
 
 
-def main():
-    """Simple test setting"""
-
-    lat = 14.63
-    lon = 38.06
-    date_end = "2022-08-24"
-    n_days = 20
-    oma = OpenMeteoAPI(lat=lat, lon=lon, date_end=date_end, n_days=n_days)
-
-    #Get the full dataset of burned locations and get the hourly data for the days before
-    locations = "/home/edoardo/DATA/SEFORE/dataset_info.csv"
-    loc_df = pd.read_csv(locations)
-    omas = []
-
-    for i, row in loc_df.iterrows():
-        omas.append(
-            OpenMeteoAPI(
-                lat=row["lat"], lon=row["lon"], date_end=row["date"], n_days=10
-            )
-        )
-
-    return omas
-
-
-if __name__ == "__main__":
-    """Exec wrapper"""
-
-    main()

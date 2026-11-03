@@ -81,13 +81,16 @@ def NDSI(img: np.array, i_vnir: int, i_swir: int) -> np.array:
     return ndsi
 
 
-def MSI(img: np.array, i_red: int, i_nir: int) -> np.array:
-    """Moisture Index
+def MSI(img: np.array, i_swir: int, i_nir: int) -> np.array:
+    """Moisture Stress Index (SWIR / NIR)
     The MSI is a reflectance measurement, sensitive to increases in leaf water content.
     """
 
-    swir = img[:, :, i_red].astype(float)
+    swir = img[:, :, i_swir].astype(float)
     nir = img[:, :, i_nir].astype(float)
     msi = swir / (nir + eps)
 
     return msi
+
+
+__all__ = ["NDVI", "NDWI", "MNDWI", "NBR", "NDMI", "NDCI", "NDSI", "MSI"]

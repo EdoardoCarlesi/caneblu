@@ -6,21 +6,49 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import tifffile
-from PIL import Image
-from shapely.geometry import Polygon, MultiPolygon
-from shapely.geometry import mapping
-from tifffile import imread, imwrite
-import geopandas as gpd
+import pyproj
 import rasterio
-from rasterio.transform import from_bounds
-from rasterio.crs import CRS
-from rasterio.merge import merge
+from PIL import Image
 from rasterio.mask import mask
+from rasterio.merge import merge
+from rasterio.transform import from_bounds
+from shapely.geometry import Polygon, mapping
+from shapely.ops import transform
+from tifffile import imread, imwrite
 
-# Local import
-from . import utils
 from . import composite_indices as ci
+
+__all__ = [
+    "gray_to_rgb",
+    "tiff_to_png",
+    "generate_bounding_box",
+    "create_rgb_imgs",
+    "bin_values",
+    "extract_date",
+    "get_files",
+    "get_fire_date",
+    "sort_before_after",
+    "normalize",
+    "brighten",
+    "rgb_to_gray",
+    "gen_diff",
+    "check_pred",
+    "load_indices_in_area",
+    "burned_mask",
+    "show_images_side_by_side",
+    "format_for_fire_risk",
+    "enhance_rgb_bands",
+    "rgbs_to_grays",
+    "compare_arrays",
+    "reshape_to_2d",
+    "create_features",
+    "save_numpy_to_geotiff",
+    "append_random_subset",
+    "merge_georeferenced_tiffs",
+    "replace_black_with_white",
+    "crop_tiff_with_polygon",
+    "crop_polygon",
+]
 
 
 def gray_to_rgb(image_data, color_map=None):
@@ -71,9 +99,10 @@ def tiff_to_png(tiff_path, output_png_path=None, color_map=None):
 
         if src.count == 1:
             rgb_image = gray_to_rgb(image_data[0])
-
-        if src.count == 3:
+        elif src.count == 3:
             rgb_image = np.dstack([image_data[0], image_data[1], image_data[2]])
+        else:
+            raise ValueError(f"tiff_to_png supports 1 or 3 bands, got {src.count}.")
 
         image = Image.fromarray(rgb_image)
 
@@ -136,7 +165,13 @@ def generate_bounding_box(latitude, longitude, size_meters):
     return polygon
 
 
-def create_rgb_imgs(base_path, sub_paths, sub_dir="SENTINEL2_NO_CLOUDS", sub_dir_target="RGB_DATA", sub_sub_dir_target="RGB", rgbs=[], pxmax=11056):
+def create_rgb_imgs(base_path, sub_paths, sub_dir="SENTINEL2_NO_CLOUDS", sub_dir_target="RGB_DATA", sub_sub_dir_target="RGB", rgbs=None, pxmax=11056):
+    """
+    Write 8-bit RGB TIFFs from every `*.tiff` in `{base_path}/{sp}/{sub_dir}`.
+
+    :return: list of the RGB arrays written (also appended to `rgbs` if given).
+    """
+    rgbs = [] if rgbs is None else rgbs
 
     for sp in sub_paths:
         images_orig = glob.glob(f"{base_path}/{sp}/{sub_dir}/*.tiff")
@@ -155,6 +190,8 @@ def create_rgb_imgs(base_path, sub_paths, sub_dir="SENTINEL2_NO_CLOUDS", sub_dir
             f_name = img.split("/")[-1]
             f_name = f"{dir1}/{f_name}"
             imwrite(f_name, io)
+
+    return rgbs
 
 
 def bin_values(vector, n_bins=5):
@@ -215,7 +252,7 @@ def get_files(path, sub_dirs, sub_sub_dirs, all_indices):
             index_path = f"{sub_dirs[0]}/{sub_sub_dirs[-1]}"
         else:
             index_path = "-"
-            print("Error: Index Path {index_path} does not exist!")
+            raise ValueError(f"Unknown index '{index}'. Expected NDVI, NBR, NDMI, RGB or NDVI_5YR.")
 
         full_path = f"{path}/{index_path}/"
         files = sorted(glob.glob(f"{full_path}*tiff"))
@@ -315,7 +352,6 @@ def load_indices_in_area(num_file, base_path, sub_paths, all_indices, sub_dirs, 
     files = get_files(path, sub_dirs, sub_sub_dirs, all_indices)
     fire_date = get_fire_date(path)
     before, after = sort_before_after(files["NDVI"].keys(), fire_date)
-    sub_paths[num_file]
 
     dates = []
     dates.append(int_to_str(after[0]))
@@ -375,7 +411,7 @@ def show_images_side_by_side(images, titles=None, cmap="viridis"):
 
 
 def format_for_fire_risk(data, n_dates=3) -> tuple:
-    i_blue, i_green, i_red, i_nir, i_swir, i_swir2 = 0, 1, 2, 3, 4, 5
+    i_red, i_nir, i_swir, i_swir2 = 2, 3, 4, 5
 
     ndvis, ndmis, rgbs_gray, nbrs, rgbs = [], [], [], [], []
 
@@ -677,32 +713,27 @@ def crop_tiff_with_polygon(input_path, output_path, polygon, polygon_crs='EPSG:4
 
 
 def crop_polygon(polygon, base_filename, size=3600, res=60):
- 
-    file_tiff = f"{base_filename}.tiff" 
-    file_png = f"{base_filename}.png" 
-    file_tiff_clip = f"{base_filename}_crop.tiff" 
-    file_png_clip = f"{base_filename}_crop.png" 
-    
-    if isinstance(polygon, Polygon):
-        has_edges = polygon_tiff_with_polygon(file_tiff, file_tiff_clip, polygon)
-        
-        if has_edges:
-            edges = polygon.bounds
+    """
+    Crop `{base_filename}.tiff` to a (Multi)Polygon and export a PNG preview.
 
-    elif isinstance(polygon, MultiPolygon):
-        for i, p in enumerate(polygon.geoms):
-            has_edges = polygon_tiff_with_polygon(file_tiff, file_tiff_clip, p)
-                
-            if has_edges:
-                edges = p.bounds
+    :return: bounds (minx, miny, maxx, maxy) of the last polygon that produced a crop,
+             or None if no crop was large enough.
+    """
+    file_tiff = f"{base_filename}.tiff"
+    file_tiff_clip = f"{base_filename}_crop.tiff"
+    file_png_clip = f"{base_filename}_crop.png"
 
-    tiff_to_png(file_tiff_clip, file_png_clip)
-    
-    return edges 
+    parts = [polygon] if isinstance(polygon, Polygon) else list(polygon.geoms)
+
+    edges = None
+    for p in parts:
+        if crop_tiff_with_polygon(file_tiff, file_tiff_clip, p):
+            edges = p.bounds
+
+    if edges is not None:
+        tiff_to_png(file_tiff_clip, file_png_clip)
+
+    return edges
 
 
-if __name__ == "__main__":
-    """ Wrap """
-
-    pass
 

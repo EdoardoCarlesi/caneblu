@@ -1,11 +1,9 @@
 import argparse
 import json
 import os
-import pickle
-import numpy as np
 from datetime import datetime, timedelta
 
-import geopandas as gpd
+import numpy as np
 from sentinelhub import (
     BBox,
     DataCollection,
@@ -26,7 +24,16 @@ from .evalscript_generator_utils import get_evalscript
 
 class SentinelHub:
     """
-    A mock class to represent the SentinelHub functionalities referenced in the script.
+    Sentinel Hub client: search the catalog and download satellite data for a bounding box.
+
+    Credentials come from `client_id`/`client_secret`, the environment variables
+    `SH_CLIENT_ID`/`SH_CLIENT_SECRET`, or a JSON file with CLIENT_ID/CLIENT_SECRET keys.
+
+    Example:
+        >>> from caneblu.harvester import SentinelHub
+        >>> sh = SentinelHub()
+        >>> data, files = sh.download_roi((15.0, 37.0, 15.5, 37.5), resolution=10,
+        ...                               time_interval=("2024-06-01", "2024-07-30"))
     """
 
     def __init__(
@@ -69,7 +76,12 @@ class SentinelHub:
                 self.config.sh_client_secret = cred["CLIENT_SECRET"]
 
         except FileNotFoundError:
-            print("Error: sentinelhub_credentials.json file not found.")
+            # SHConfig() already reads SH_CLIENT_ID / SH_CLIENT_SECRET from the environment
+            if not self.config.sh_client_id:
+                print(
+                    "Warning: no Sentinel Hub credentials. Pass client_id/client_secret, "
+                    "set SH_CLIENT_ID and SH_CLIENT_SECRET, or create the credentials file."
+                )
 
     def _to_bbox(self, bounding_box):
         """Convert various bounding box formats to a SentinelHub BBox object.
@@ -158,8 +170,6 @@ class SentinelHub:
             config=self.config,
         )
 
-        string = self.catalog.get_collections()
-        json_str = json.dumps(string, indent=4)
         self.data = self.sentinel_request.get_data()
 
         # To avoid weird array dimensions later on
@@ -197,7 +207,6 @@ class SentinelHub:
         )
     
         catalog = utils.remove_duplicates_from_list(catalog)
-        catalog_str = json.dumps(catalog, indent=4)
 
         for entry in catalog:
             date = entry["properties"]["datetime"]
@@ -246,8 +255,15 @@ class SentinelHub:
 
 
 def format_for_fire_risk(data, n_dates=3) -> tuple:
+    """
+    Compute NDVI, NDMI, NBR and grayscale RGB for the first `n_dates` images.
 
-    i_blue, i_green, i_red, i_nir, i_swir, i_swir2 = 0, 1, 2, 3, 4, 5
+    :param data: List of Sentinel-2 arrays (bands B02, B03, B04, B08, B11, B12 as produced by
+                 `SentinelHub.download_roi`), indexed by date.
+    :return: (ndvis, ndmis, rgbs_gray, nbrs), each a list of 2D arrays.
+    """
+
+    i_red, i_nir, i_swir, i_swir2 = 2, 3, 4, 5
     ndvis, ndmis, rgbs_gray, nbrs = [], [], [], []
 
     for i in range(0, n_dates):
@@ -282,10 +298,10 @@ def parse_params() -> dict:
         "-de", "--date_end", type=str, dest="date_end", default="2021-08-30"
     )
     parser.add_argument("-r", "--resolution", type=int, dest="resolution", default=10)
-    parser.add_argument("-m", "--mosaic", type=bool, dest="mosaic", default=False)
+    parser.add_argument("-m", "--mosaic", type=_str2bool, dest="mosaic", default=False)
     parser.add_argument("-t", "--time_span", type=int, dest="time_span", default=10)
-    parser.add_argument("-si", "--square_init", type=str, dest="square_init", default=0)
-    parser.add_argument("-se", "--square_end", type=str, dest="square_end", default=1)
+    parser.add_argument("-si", "--square_init", type=int, dest="square_init", default=0)
+    parser.add_argument("-se", "--square_end", type=int, dest="square_end", default=1)
     parser.add_argument(
         "-dt", "--data_type", type=str, dest="data_type", default="all_bands_10m"
     )
@@ -295,56 +311,115 @@ def parse_params() -> dict:
     return vars(args)
 
 
-def parse_start():
+def download_province(
+    prov,
+    side,
+    time_interval,
+    square_init=0,
+    square_end=1,
+    sh=None,
+    geo_file=None,
+    **download_kwargs,
+) -> dict:
+    """
+    Download Sentinel Hub data for a range of squares covering a province.
 
-    # First read, parse and format the input parameters in a dictionary
+    The province is split into `side` x `side` metre squares (see
+    `geocoding.generate_squares_for_province`); squares `square_init` (inclusive)
+    to `square_end` (exclusive) are downloaded with `SentinelHub.download_roi`.
+
+    :param prov: Province code, e.g. "CT".
+    :param side: Square side length in metres.
+    :param time_interval: (start, end) date strings, "YYYY-MM-DD".
+    :param square_init: First square index to download.
+    :param square_end: One past the last square index to download.
+    :param sh: Optional existing `SentinelHub` instance (created if None).
+    :param geo_file: Optional path to the province boundaries shapefile.
+    :param download_kwargs: Extra keyword arguments forwarded to `download_roi`
+                            (e.g. resolution, cloud_cover, mosaic, data_type, base_path).
+    :return: {square_index: (list_of_arrays, list_of_npy_files)}
+    """
+    from . import geocoding
+
+    squares = geocoding.generate_squares_for_province(prov=prov, side=side, geo_file=geo_file)
+    sh = sh or SentinelHub()
+
+    results = {}
+    for index in range(square_init, square_end):
+        bbox = squares.geometry.iloc[index].bounds  # (min_lon, min_lat, max_lon, max_lat)
+        results[index] = sh.download_roi(
+            bbox,
+            base_path=f"tmp/{prov}_{side}_",
+            index=index,
+            time_interval=time_interval,
+            **download_kwargs,
+        )
+
+    return results
+
+
+def _str2bool(value) -> bool:
+    """argparse helper: accepts 'true/false', 'yes/no', '1/0'."""
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ("1", "true", "yes", "y")
+
+
+def parse_start():
+    """Command-line entry point: `python -m caneblu.harvester -p CT -s 3600 ...`"""
+
     params = parse_params()
 
-    sentinel_download_province(
-        resolution=params["resolution"],
-        time_interval=(params["date_init"], params["date_end"]),
+    download_province(
         prov=params["prov"],
         side=params["side"],
-        time_span=params["time_span"],
+        time_interval=(params["date_init"], params["date_end"]),
         square_init=params["square_init"],
         square_end=params["square_end"],
+        resolution=params["resolution"],
         cloud_cover=params["cloud_cover"],
         data_type=params["data_type"],
         mosaic=params["mosaic"],
+        time_span=params["time_span"],
     )
 
 
-def param_start(prov):
+def param_start(prov, sh=None):
+    """
+    Example pipeline: harvest one square of a province at 60 m resolution and
+    build the fire-risk feature table.
 
-    dinit, dend = "2025-06-15", "2025-06-30"
-    square_init = 0
-    square_end = square_init + 1
-    resolution = 60
-    data_type = "fire_risk_bands_60m"
-    do_harvest = True
-    mosaic = True
-    side = 3600
-    cloud_cover = 10
+    :return: pandas DataFrame of features (see `satellite_image_utils.create_features`).
+    """
     n_dates = 3
 
-    if do_harvest:
-        data, files = sentinel_download_province(
-            resolution=resolution,
-            time_interval=(dinit, dend),
-            prov=prov,
-            side=side,
-            square_init=square_init,
-            square_end=square_end,
-            data_type=data_type,
-            cloud_cover=cloud_cover,
-            mosaic=mosaic,
-        )
+    results = download_province(
+        prov=prov,
+        side=3600,
+        time_interval=("2025-06-15", "2025-06-30"),
+        square_init=0,
+        square_end=1,
+        sh=sh,
+        resolution=60,
+        cloud_cover=10,
+        data_type="fire_risk_bands_60m",
+        mosaic=True,
+    )
+    data, _files = results[0]
 
-    (ndvis, ndmis, rgbs_gray, nbrs) = format_for_fire_risk(data)
-    data_df = siu.create_features(ndvis, ndmis, rgbs_gray, nbrs, n_dates=n_dates)
+    ndvis, ndmis, rgbs_gray, nbrs = format_for_fire_risk(data, n_dates=n_dates)
+    return siu.create_features(ndvis, ndmis, rgbs_gray, nbrs, n_dates=n_dates)
+
+
+__all__ = [
+    "SentinelHub",
+    "download_province",
+    "format_for_fire_risk",
+    "parse_params",
+    "parse_start",
+    "param_start",
+]
 
 
 if __name__ == "__main__":
-    """Go!"""
-
-    param_start(prov="CT")
+    parse_start()

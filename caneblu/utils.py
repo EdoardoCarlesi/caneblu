@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 import json
 import os
 import time
@@ -145,12 +145,16 @@ def utc_to_time(date_utc: int) -> tuple:
 
 HOURS_CACHE = 1
 
-
-if __name__ == "__main__":
-    """
-    Execute stuff from here
-    """
-
-    for prov in provs:
-        #upload_ml_to_minio(prov)   
-        get_ml_from_minio(prov)
+__all__ = [
+    "npy_filename",
+    "npy_mosaic_filename",
+    "remove_duplicates_from_list",
+    "is_file_older_than",
+    "read_json_file",
+    "dump_geojson",
+    "modis_to_celsius",
+    "fix_time",
+    "time_to_utc",
+    "utc_to_time",
+    "HOURS_CACHE",
+]

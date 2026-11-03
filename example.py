@@ -1,19 +1,22 @@
-from shapely.geometry import Polygon
-from sentinelhub import BBox
+"""
+Minimal end-to-end example: download Sentinel-2 data for one bounding box.
+
+Credentials are read from the environment (never hard-code them):
+
+    export SH_CLIENT_ID="your-client-id"
+    export SH_CLIENT_SECRET="your-client-secret"
+    python example.py
+"""
+
 from caneblu.harvester import SentinelHub
 
-sh = SentinelHub(
-    client_id="REDACTED_CLIENT_ID",
-    client_secret="REDACTED_SECRET"
-)
+sh = SentinelHub()  # picks up SH_CLIENT_ID / SH_CLIENT_SECRET from the environment
 
-bbox_tuple = (15.0, 37.0, 15.5, 37.5)
-bbox_list = [(15.0, 37.0), (15.5, 37.0), (15.5, 37.5), (15.0, 37.5), (15.0, 37.0)]
-bbox_polygon = Polygon(bbox_list)
-bbox_sh = BBox(bbox=(15.0, 37.0, 15.5, 37.5), crs="EPSG:4326")
+# (min_lon, min_lat, max_lon, max_lat) in EPSG:4326
+bbox = (15.0, 37.0, 15.5, 37.5)
 
 data, files = sh.download_roi(
-    bbox=bbox_tuple,
+    bbox=bbox,
     base_path="tmp/area_",
     index=0,
     resolution=10,
@@ -21,6 +24,7 @@ data, files = sh.download_roi(
     cloud_cover=20,
     mosaic=False,
     save_numpy=True,
-    #data_type="all_bands_10m"
-    data_type="all_bands_10m"
+    data_type="all_bands_10m",
 )
+
+print(f"Downloaded {len(data)} acquisitions, saved {len(files)} files")

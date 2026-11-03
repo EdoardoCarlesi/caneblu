@@ -1,12 +1,16 @@
-# Do the reverse geocoding operation - for each center of the list above get
+"""
+Geocoding, coordinate utilities and polygon splitting.
+
+Heavy optional dependencies (earthengine-api for `bbox_from_address`) are imported
+inside the functions that need them, so importing this module stays fast.
+"""
+
 import os
 import random
 
-import ee
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import streamlit as st
 from sentinelhub import BBox, UtmZoneSplitter
 from shapely.geometry import MultiPolygon, Point, Polygon
 from tqdm import tqdm
@@ -25,6 +29,9 @@ def split_into_squares(
     :param: gdf_bboxes, GeoDataFrame containing all the squares into which the area is divided
     """
 
+    if not wgs84:
+        raise ValueError("split_into_squares only returns WGS84 (EPSG:4326) squares; use wgs84=True.")
+
     print("Splitting polygon into squares...")
     translated_shape, deg_shift = check_utm_box(shape)
 
@@ -33,14 +40,7 @@ def split_into_squares(
     info_list = np.array(bbox_splitter.get_info_list())
     print(info_list)
 
-    bboxes_gps = []
-
-    # Loop over the bounding boxes
-    for one_box in tqdm(bbox_list):
-        if wgs84:
-            this_box = bbox_utm_to_wgs84(one_box)
-
-        bboxes_gps.append(this_box)
+    bboxes_gps = [bbox_utm_to_wgs84(one_box) for one_box in tqdm(bbox_list)]
 
     gdf_bboxes = gpd.GeoDataFrame(geometry=bboxes_gps, crs=crs)
     gdf_bboxes["geometry"] = gdf_bboxes.translate(xoff=-deg_shift)
@@ -79,12 +79,8 @@ def bbox_to_polygon(bbox=None) -> Polygon:
 
     lon0, lat0, lon1, lat1 = tuple(bbox)
 
-    pt0 = [lon0, lat0]
-    pt1 = [lon0, lat1]
-    pt2 = [lon1, lat0]
-    pt3 = [lon1, lat1]
-
-    polybox = Polygon([pt0, pt1, pt2, pt3])
+    # Vertices in ring order (counter-clockwise); a valid, non-self-intersecting rectangle
+    polybox = Polygon([(lon0, lat0), (lon1, lat0), (lon1, lat1), (lon0, lat1)])
 
     return polybox
 
@@ -108,9 +104,7 @@ def invert_polygon_latlon(polygon=None) -> Polygon:
         polygons = list(polygon)
 
     else:
-        print(
-            "Error. Must deal with polygons only for coordinate inversion. Exiting..."
-        )
+        raise TypeError("invert_polygon_latlon expects a shapely Polygon or MultiPolygon.")
 
     # Convert the polygons to the new coordinate system, point by point
     polygons_tmp = []
@@ -292,7 +286,7 @@ def find_zones_within_radius(
     geo_data_select = gpd.GeoDataFrame(rows_select, crs=epsg_metric)
 
     # Convert the selected geodata to the original CRS (here they are still in the epsg_metric CRS)
-    geo_data_select.to_crs(crs=crs)
+    geo_data_select = geo_data_select.to_crs(crs=crs)
 
     # Print some information on the selected data
     print(
@@ -328,6 +322,8 @@ def bbox_from_address(address: str, radius: float) -> tuple:
     Take a string with an address and get its gps coordinates
     """
 
+    import ee  # optional dependency, only needed for this function
+
     coords = gpd.tools.geocode(address)
     poi = coords["geometry"]
     region = poi.buffer(radius)[0]
@@ -338,15 +334,23 @@ def bbox_from_address(address: str, radius: float) -> tuple:
     return region_ee, poi_ee
 
 
-def generate_squares_for_province(prov: str, side: int) -> gpd.GeoDataFrame:
+DEFAULT_PROVINCE_FILE = (
+    "/home/edoardo/DATA/confini_amministrativi/Limiti01012021_g/"
+    "ProvCM01012021_g/ProvCM01012021_g_WGS84.shp"
+)
+
+
+def generate_squares_for_province(prov: str, side: int, geo_file=None) -> gpd.GeoDataFrame:
     """
     Generate a set of squares for a given province name and square size in meters.
+    The result is cached to `data/{prov}_squares_{side}.shp` and reused on later calls.
 
     :param prov: Province code (e.g., 'CT').
     :param side: Size of each square in meters.
+    :param geo_file: Shapefile with province boundaries (column 'SIGLA'). Defaults to DEFAULT_PROVINCE_FILE.
     :return: GeoDataFrame containing the squares.
     """
-    geo_file = "/home/edoardo/DATA/confini_amministrativi/Limiti01012021_g/ProvCM01012021_g/ProvCM01012021_g_WGS84.shp"
+    geo_file = geo_file or DEFAULT_PROVINCE_FILE
     file_out = f"data/{prov}_squares_{side}.shp"
 
     if not os.path.exists(file_out):
@@ -369,10 +373,9 @@ def test_generation(size=7200):
     provinces = ["CT", "PA", "RG", "AG", "SR", "ME", "TP", "EN", "CL"]
     gdfs = []
 
-    with st.spinner(f"Partitioning the man in {size} km side squares..."):
-        for select in tqdm(provinces):
-            gdf_boxes = generate_squares_for_province(prov=select, side=size)
-            gdfs.append(gdf_boxes)
+    for select in tqdm(provinces):
+        gdf_boxes = generate_squares_for_province(prov=select, side=size)
+        gdfs.append(gdf_boxes)
 
     file_reg_out = f"data/{regione}_squares_{size}.shp"
     full_gpd = pd.concat(gdfs)
@@ -382,7 +385,19 @@ def test_generation(size=7200):
     )
 
 
-if __name__ == "__main__":
-    """MAIN WRAPPER"""
-
-    generate_squares_for_province(prov="CT", side=7200)
+__all__ = [
+    "split_into_squares",
+    "bbox_utm_to_wgs84",
+    "bbox_to_polygon",
+    "invert_polygon_latlon",
+    "get_address_from_gps",
+    "find_point_within_polygon",
+    "check_utm_box",
+    "unpack_address",
+    "check_polygons_overlap",
+    "find_zones_within_radius",
+    "resample_within_polygon",
+    "bbox_from_address",
+    "generate_squares_for_province",
+    "DEFAULT_PROVINCE_FILE",
+]
