@@ -76,6 +76,9 @@ Sentinel Hub dashboard, then provide them in one of three ways, in this order of
 }
 ```
 
+Open-Meteo needs no credentials for its free API. A commercial API key is optional and is read from
+`OPEN_METEO_API_KEY` (or passed as `OpenMeteoAPI(..., api_key=...)`). See the `open_meteo_api` section.
+
 Never commit credentials to version control. Use environment variables or a file that is git-ignored.
 
 ```bash
@@ -747,6 +750,36 @@ does not make a network call; calls happen when you use the data methods.
 | `history()` | Hourly history for the window (network) |
 | `forecast(tmp_path, forecast_days)` | Hourly forecast, cached on disk for one hour (network) |
 | `recover_humidity()` | Estimate humidity with a random forest (needs scikit-learn, network) |
+
+**Using an API key (commercial plan)**
+
+Without a key, requests go to the free hosts (`archive-api.open-meteo.com`, `api.open-meteo.com`).
+With a key, they go to the commercial hosts (`customer-archive-api.open-meteo.com`,
+`customer-api.open-meteo.com`) and the key is sent as an `apikey` query parameter. The key is never
+written into the URL, so it does not appear in timeout log messages. The key is taken from the
+argument if given, otherwise from `OPEN_METEO_API_KEY`:
+
+```bash
+export OPEN_METEO_API_KEY="your-open-meteo-key"
+```
+
+```python
+# requires network and an Open-Meteo API key
+from caneblu.open_meteo_api import OpenMeteoAPI
+
+# picks up OPEN_METEO_API_KEY from the environment
+om = OpenMeteoAPI(lat=37.5, lon=15.1, date_end="2024-07-31", n_days=10)
+
+# or pass the key explicitly
+om_explicit = OpenMeteoAPI(lat=37.5, lon=15.1, date_end="2024-07-31", n_days=10,
+                           api_key="your-open-meteo-key")
+
+daily = om.call_api(frequency="daily", call_type="archive")      # customer-archive-api
+hourly = om.history()                                            # customer-archive-api
+forecast = om.forecast(tmp_path="tmp/", forecast_days=2)         # customer-api, cached 1 h
+```
+
+Get a key from the [Open-Meteo pricing page](https://open-meteo.com/en/pricing).
 
 **Example 1 – construct and inspect (offline)**
 

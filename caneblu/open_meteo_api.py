@@ -28,9 +28,16 @@ class OpenMeteoAPI:
         prov="AREA",
         index=0,
         side=3600,
+        api_key=None,
     ):
-        """Initialize inner variables"""
+        """
+        Initialize inner variables.
 
+        :param api_key: Open-Meteo commercial API key. If omitted, the OPEN_METEO_API_KEY
+                        environment variable is used. Without a key the free public API is called.
+        """
+
+        self.api_key = api_key or os.environ.get("OPEN_METEO_API_KEY") or None
         self.data = dict()
         self.hourly_values = [
             "temperature_2m",
@@ -99,10 +106,14 @@ class OpenMeteoAPI:
         if date_end == None:
             date_end = self.date_end.format("YYYY-MM-DD")
 
+        # With an API key the commercial "customer-" hosts are used; the key is sent as a query
+        # parameter (see `params` below) so it never appears in the URL that gets logged.
         if call_type == "archive":
-            api_call = f"https://archive-api.open-meteo.com/v1/{call_type}?latitude={self.lat}&longitude={self.lon}&start_date={date_start}&end_date={date_end}&{frequency}="
+            host = "customer-archive-api" if self.api_key else "archive-api"
+            api_call = f"https://{host}.open-meteo.com/v1/{call_type}?latitude={self.lat}&longitude={self.lon}&start_date={date_start}&end_date={date_end}&{frequency}="
         elif call_type == "forecast":
-            api_call = f"https://api.open-meteo.com/v1/{call_type}?latitude={self.lat}&longitude={self.lon}&forecast_days={forecast_days}&{frequency}="
+            host = "customer-api" if self.api_key else "api"
+            api_call = f"https://{host}.open-meteo.com/v1/{call_type}?latitude={self.lat}&longitude={self.lon}&forecast_days={forecast_days}&{frequency}="
         else:
             raise ValueError(f"call_type must be 'archive' or 'forecast', got {call_type!r}.")
 
@@ -117,7 +128,8 @@ class OpenMeteoAPI:
             self.data["daily"] = dict()
 
         try:
-            api_data = requests.get(api_call, timeout=timeout)
+            params = {"apikey": self.api_key} if self.api_key else None
+            api_data = requests.get(api_call, params=params, timeout=timeout)
             self.data[frequency] = api_data.json()[frequency]
 
         except requests.exceptions.Timeout:
