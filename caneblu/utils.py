@@ -25,7 +25,8 @@ def remove_duplicates_from_list(data):
     seen = set()
 
     for item in data:
-        item_id = item['id'].split('_')[-1]
+        # Full id: the last '_' segment is not unique (e.g. 'L2A' for every Earth Search item)
+        item_id = item['id']
 
         if item_id not in seen:
             deduplicated_list.append(item)

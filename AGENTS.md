@@ -14,7 +14,8 @@ Single package at repo root. `setup.py` maps `package_dir={"caneblu": "."}` — 
 |---|---|
 | `composite_indices.py` | NDVI, NDWI, NBR, NDMI, NDCI, NDSI, MSI |
 | `geocoding.py` | Geocoding, polygon splitting (SentinelHub `UtmZoneSplitter`), coordinate utils |
-| `harvester.py` | `SentinelHub` class — data download orchestration |
+| `harvester.py` | `SentinelHub` class — data download orchestration. `provider="sentinelhub"` (default) or `"earth_search"` (key-less Sentinel-2) |
+| `earth_search.py` | Earth Search STAC client: key-less Sentinel-2 search and COG reads (used when `provider="earth_search"`) |
 | `satellite_image_utils.py` | GeoTIFF I/O, RGB/grayscale conversions, feature creation |
 | `evalscript_generator_utils.py` | Sentinel Hub evalscript strings |
 | `open_meteo_api.py` | Open-Meteo archive/forecast API wrapper |

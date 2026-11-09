@@ -62,7 +62,8 @@ print(caneblu.__version__)
 
 ## Credentials
 
-Only the Sentinel Hub downloads (`harvester`) need credentials. Get a client ID and secret from the
+Only the Sentinel Hub downloads (`harvester`, with the default `provider="sentinelhub"`) need credentials.
+`provider="earth_search"` needs none. Get a client ID and secret from the
 Sentinel Hub dashboard, then provide them in one of three ways. When more than one is present, the
 first that applies wins:
 
@@ -146,7 +147,8 @@ print(len(data), "acquisitions;", files[0])
 |---|---|---|
 | `composite_indices` | Spectral indices on NumPy arrays | `NDVI`, `NDWI`, `MNDWI`, `NBR`, `NDMI`, `NDCI`, `NDSI`, `MSI` |
 | `evalscript_generator_utils` | Sentinel Hub evalscript strings | `get_evalscript(name, bands=None)` |
-| `harvester` | Sentinel Hub catalog search and downloads | `SentinelHub`, `download_province`, `format_for_fire_risk` |
+| `harvester` | Sentinel Hub or Earth Search catalog search and downloads | `SentinelHub`, `download_province`, `format_for_fire_risk` |
+| `earth_search` | Key-less Sentinel-2 from the Earth Search STAC API (AWS) | `search`, `request_box` |
 | `geocoding` | Geometry, coordinates, squares, overlap checks | `split_into_squares`, `bbox_to_polygon`, `check_polygons_overlap`, `generate_squares_for_province` |
 | `satellite_image_utils` | GeoTIFF I/O, grayscale, feature tables, cropping | `tiff_to_png`, `create_features`, `save_numpy_to_geotiff`, `crop_tiff_with_polygon` |
 | `open_meteo_api` | Open-Meteo archive and forecast wrapper | `OpenMeteoAPI` |
@@ -319,6 +321,34 @@ print(sh.get_raw_bands("ndvi").strip().splitlines()[0])
 ### `harvester` – Sentinel Hub downloads
 
 `SentinelHub` wraps the Sentinel Hub catalog and processing API.
+
+**Providers.** The `provider` argument selects where the data comes from. The methods below behave
+the same for both, and `download_roi` works unchanged with either:
+
+| `provider` | Data | Credentials |
+|---|---|---|
+| `"sentinelhub"` (default) | Sentinel-2 L1C, Sentinel-1 SAR (`*_sar_*` methods) | Yes |
+| `"earth_search"` | Sentinel-2 L1C and L2A (`data_collection="Sentinel2L1C"` or `"Sentinel2L2A"`) from AWS Open Data | No |
+
+Earth Search reads the public Cloud-Optimised GeoTIFFs directly, mosaics and reprojects them to the
+same UTM grid, and returns arrays with the same band order as the Sentinel Hub evalscripts. Sentinel-1
+SAR and Landsat are only available through Sentinel Hub or not at all: the Earth Search Sentinel-1 GRD
+data is uncalibrated, and the Landsat bucket is requester-pays. Sentinel Hub's L1C data is top-of-atmosphere
+reflectance and Earth Search's L2A is surface reflectance, so index values can differ slightly between the two.
+
+```python
+from caneblu.harvester import SentinelHub
+
+sh = SentinelHub(provider="earth_search", data_collection="Sentinel2L2A")   # no credentials
+arrays, files = sh.download_roi(
+    bbox=(15.0, 37.0, 15.03, 37.03),
+    base_path="tmp/es_area_",
+    resolution=60,
+    time_interval=("2024-06-01", "2024-06-30"),
+    cloud_cover=20,
+    data_type="fire_risk_bands_60m",
+)
+```
 
 | Method | Purpose |
 |---|---|

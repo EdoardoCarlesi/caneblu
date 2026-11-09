@@ -26,6 +26,7 @@ _SUBMODULES = {
     "utils",
     "evalscript_generator_utils",
     "open_meteo_api",
+    "earth_search",
 }
 
 __all__ = sorted(_SUBMODULES)

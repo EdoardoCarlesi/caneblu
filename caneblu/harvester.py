@@ -18,11 +18,15 @@ from shapely.geometry import Polygon
 
 from . import utils
 from . import composite_indices as ci
+from . import earth_search as es
 from . import satellite_image_utils as siu
 from .evalscript_generator_utils import get_evalscript
 
 # Sentinel-1 GRD (SAR) collection used by the *_sar_* methods
 SAR_COLLECTION = DataCollection.SENTINEL1_IW
+
+# Data providers. "sentinelhub" needs credentials; "earth_search" needs none.
+PROVIDERS = ("sentinelhub", "earth_search")
 
 
 class SentinelHub:
@@ -48,10 +52,21 @@ class SentinelHub:
         data_collection="Sentinel2L1C",
         client_id=None,
         client_secret=None,
+        provider="sentinelhub",
     ):
 
+        if provider not in PROVIDERS:
+            raise ValueError(f"Unknown provider '{provider}'. Valid options: {PROVIDERS}.")
+        if provider == "earth_search" and data_collection not in es.COLLECTIONS:
+            raise ValueError(
+                f"Collection '{data_collection}' is not available from earth_search. "
+                f"Valid options: {sorted(es.COLLECTIONS)}."
+            )
+
+        self.provider = provider
         self.crs = crs
         self.cred_file = credentials_file_json
+        self.data_collection_name = data_collection
 
         # Default
         self.data_collection = DataCollection.SENTINEL2_L1C
@@ -60,7 +75,8 @@ class SentinelHub:
             self.data_collection = DataCollection.SENTINEL2_L1C
 
         self.config = SHConfig()
-        self.config_auto(client_id, client_secret)
+        if provider == "sentinelhub":
+            self.config_auto(client_id, client_secret)
         self.config.instance_id = instance_id
         self.config.max_download_attempts = max_download_attempts
         self.catalog = SentinelHubCatalog(config=self.config)
@@ -117,6 +133,17 @@ class SentinelHub:
 
         raise TypeError(f"Unsupported bounding box type: {type(bounding_box)}")
 
+    def _require_sentinelhub(self, feature):
+        if self.provider != "sentinelhub":
+            raise NotImplementedError(
+                f"{feature} need provider='sentinelhub'; earth_search only serves Sentinel-2 "
+                "(Sentinel-1 GRD there is uncalibrated and needs extra processing)."
+            )
+
+    def _bbox_tuple(self, bbox) -> tuple:
+        """(min_lon, min_lat, max_lon, max_lat) from a sentinelhub BBox."""
+        return (bbox.min_x, bbox.min_y, bbox.max_x, bbox.max_y)
+
     def get_raw_bands(self, script="all_bands_10m"):
         return get_evalscript(script)
 
@@ -125,6 +152,15 @@ class SentinelHub:
     ):
 
         bbox = self._to_bbox(bounding_box)
+
+        if self.provider == "earth_search":
+            return es.search(
+                es.COLLECTIONS[self.data_collection_name],
+                self._bbox_tuple(bbox),
+                time_interval,
+                cloud_cover=cloud_cover,
+            )
+
         search_iterator = self.catalog.search(
             self.data_collection,
             bbox=bbox,
@@ -151,6 +187,17 @@ class SentinelHub:
     ):
 
         bbox = self._to_bbox(bounding_box)
+
+        if self.provider == "earth_search":
+            return es.request_box(
+                es.COLLECTIONS[self.data_collection_name],
+                self._bbox_tuple(bbox),
+                data_type=data_type,
+                resolution=resolution,
+                time_interval=time_interval,
+                mosaic=mosaic,
+            )
+
         size = bbox_to_dimensions(bbox, resolution=resolution)
         script = self.get_raw_bands(script=data_type)
 
@@ -244,7 +291,7 @@ class SentinelHub:
                 data = np.load(output_file)
 
             else:
-                print(f"Harvesting Sentinel Hub data for {base_path} on {formatted_date}")
+                print(f"Harvesting {self.provider} data for {base_path} on {formatted_date}")
                 data = self.request_box(
                     bbox,
                     data_type=data_type,
@@ -266,6 +313,7 @@ class SentinelHub:
         """
         List Sentinel-1 acquisitions for a bounding box. SAR has no cloud cover, so no cloud filter.
         """
+        self._require_sentinelhub("SAR downloads")
 
         bbox = self._to_bbox(bounding_box)
         search_iterator = self.catalog.search(
@@ -292,6 +340,7 @@ class SentinelHub:
         Download one Sentinel-1 array (linear backscatter, float32) for one bounding box and time range.
         `mosaic=True` keeps the most recent acquisition in the interval instead of the default order.
         """
+        self._require_sentinelhub("SAR downloads")
 
         bbox = self._to_bbox(bounding_box)
         size = bbox_to_dimensions(bbox, resolution=resolution)
