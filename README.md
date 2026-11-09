@@ -169,6 +169,7 @@ Index functions take **band positions**, not band names. The position depends on
 | `false_color` | 0 B08 (NIR), 1 B04 (red), 2 B03 (green) | `NDVI(img, i_red=1, i_nir=0)` |
 | `ndvi` | 0 NDVI (already computed on the server) | — |
 | `cloud_mask` | 0 CLM (cloud mask) | — |
+| `sar_vv_vh` (Sentinel-1 SAR, `download_sar_roi`) | 0 VV, 1 VH (linear backscatter, float32) | — |
 
 Sentinel-2 band reference: B02 blue, B03 green, B04 red, B08 NIR, B11 SWIR1, B12 SWIR2.
 When in doubt, check `get_evalscript(name)` for the exact order.
@@ -432,6 +433,31 @@ results = download_province(
 for square, (arrays, files) in results.items():
     print("square", square, "->", len(arrays), "images")
 ```
+
+**Example 5b – download Sentinel-1 SAR data for one box (network)**
+
+The SAR methods mirror the optical ones. They use the Sentinel-1 IW collection, so there is no
+`cloud_cover` argument. Use a different `base_path` from the optical downloads so the caches don't mix.
+
+```python
+# requires network and credentials
+from caneblu.harvester import SentinelHub
+
+sh = SentinelHub()
+catalog = sh.get_sar_catalog((15.0, 37.0, 15.5, 37.5), time_interval=("2024-06-01", "2024-06-30"))
+
+arrays, files = sh.download_sar_roi(
+    bbox=(15.0, 37.0, 15.5, 37.5),
+    base_path="tmp/sar_area_",
+    resolution=10,
+    time_interval=("2024-06-01", "2024-06-30"),
+    mosaic=False,               # True: most recent acquisition per day
+    data_type="sar_vv_vh",      # arrays have shape (H, W, 2): VV, VH
+)
+```
+
+To download a province in squares, use `download_sar_province(prov, side, time_interval, ...)`. It has
+the same arguments as `download_province`.
 
 **Example 6 – turn downloaded arrays into fire-risk layers (offline)**
 

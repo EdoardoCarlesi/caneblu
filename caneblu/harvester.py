@@ -21,6 +21,9 @@ from . import composite_indices as ci
 from . import satellite_image_utils as siu
 from .evalscript_generator_utils import get_evalscript
 
+# Sentinel-1 GRD (SAR) collection used by the *_sar_* methods
+SAR_COLLECTION = DataCollection.SENTINEL1_IW
+
 
 class SentinelHub:
     """
@@ -259,6 +262,130 @@ class SentinelHub:
 
         return self.all_data, self.all_output_files
 
+    def get_sar_catalog(self, bounding_box, time_interval=("2020-06-12", "2020-06-13")):
+        """
+        List Sentinel-1 acquisitions for a bounding box. SAR has no cloud cover, so no cloud filter.
+        """
+
+        bbox = self._to_bbox(bounding_box)
+        search_iterator = self.catalog.search(
+            SAR_COLLECTION,
+            bbox=bbox,
+            time=time_interval,
+            fields={
+                "include": ["id", "properties.datetime"],
+                "exclude": [],
+            },
+        )
+
+        return list(search_iterator)
+
+    def request_sar_box(
+        self,
+        bounding_box,
+        mosaic=False,
+        data_type="sar_vv_vh",
+        resolution=10,
+        time_interval=("2020-06-12", "2020-06-13"),
+    ):
+        """
+        Download one Sentinel-1 array (linear backscatter, float32) for one bounding box and time range.
+        `mosaic=True` keeps the most recent acquisition in the interval instead of the default order.
+        """
+
+        bbox = self._to_bbox(bounding_box)
+        size = bbox_to_dimensions(bbox, resolution=resolution)
+        script = self.get_raw_bands(script=data_type)
+
+        mosaicking_order = MosaickingOrder.MOST_RECENT if mosaic else None
+        sentinel_input_data = [
+            SentinelHubRequest.input_data(
+                data_collection=SAR_COLLECTION,
+                time_interval=time_interval,
+                mosaicking_order=mosaicking_order,
+            )
+        ]
+
+        self.sar_request = SentinelHubRequest(
+            evalscript=script,
+            input_data=sentinel_input_data,
+            responses=[SentinelHubRequest.output_response("default", MimeType.TIFF)],
+            bbox=bbox,
+            size=size,
+            config=self.config,
+        )
+
+        self.sar_data = self.sar_request.get_data()
+
+        # To avoid weird array dimensions later on
+        return self.sar_data[0]
+
+    def download_sar_roi(
+        self,
+        bbox,
+        base_path='tmp/sar_area_',
+        index=0,
+        resolution=10,
+        time_interval=("2024-06-01", "2024-07-30"),
+        mosaic=False,
+        save_numpy=True,
+        data_type="sar_vv_vh",
+    ) -> tuple:
+        """
+        Sentinel-1 counterpart of `download_roi`: one array per acquisition, cached as .npy files.
+        Use a `base_path` distinct from the optical one to keep the two caches apart.
+        """
+
+        resolution = int(resolution)
+        mosaic = bool(mosaic)
+
+        self.all_sar_data = []
+        self.all_sar_output_files = []
+
+        catalog = self.get_sar_catalog(bbox, time_interval=time_interval)
+        catalog = utils.remove_duplicates_from_list(catalog)
+
+        for entry in catalog:
+            date = entry["properties"]["datetime"]
+            try:
+                formatted_date = datetime.fromisoformat(date).strftime("%Y-%m-%d")
+            except:
+                date = date.replace('Z', '+00:00')
+                formatted_date = datetime.fromisoformat(date).strftime("%Y-%m-%d")
+
+            day_before = (datetime.fromisoformat(date) - timedelta(days=1)).strftime("%Y-%m-%d")
+            day_after = (datetime.fromisoformat(date) + timedelta(days=1)).strftime("%Y-%m-%d")
+
+            this_time_interval = (day_before, day_after)
+
+            if mosaic:
+                output_file = utils.npy_mosaic_filename(base_path, index, date, res=resolution)
+            else:
+                output_file = utils.npy_filename(base_path, index, date, res=resolution)
+
+            if os.path.exists(output_file):
+                print(f"File {output_file} found")
+                data = np.load(output_file)
+
+            else:
+                print(f"Harvesting Sentinel-1 data for {base_path} on {formatted_date}")
+                data = self.request_sar_box(
+                    bbox,
+                    data_type=data_type,
+                    resolution=resolution,
+                    time_interval=this_time_interval,
+                    mosaic=mosaic,
+                )
+
+                if save_numpy:
+                    print(f"Saving to: {output_file}, sanity check on data shape: {data.shape}\n")
+                    np.save(output_file, data)
+
+            self.all_sar_output_files.append(output_file)
+            self.all_sar_data.append(data)
+
+        return self.all_sar_data, self.all_sar_output_files
+
 
 def format_for_fire_risk(data, n_dates=3) -> tuple:
     """
@@ -364,6 +491,41 @@ def download_province(
     return results
 
 
+def download_sar_province(
+    prov,
+    side,
+    time_interval,
+    square_init=0,
+    square_end=1,
+    sh=None,
+    geo_file=None,
+    **download_kwargs,
+) -> dict:
+    """
+    Sentinel-1 counterpart of `download_province`: same square tiling, but each square is
+    downloaded with `SentinelHub.download_sar_roi`.
+
+    :return: {square_index: (list_of_arrays, list_of_npy_files)}
+    """
+    from . import geocoding
+
+    squares = geocoding.generate_squares_for_province(prov=prov, side=side, geo_file=geo_file)
+    sh = sh or SentinelHub()
+
+    results = {}
+    for index in range(square_init, square_end):
+        bbox = squares.geometry.iloc[index].bounds  # (min_lon, min_lat, max_lon, max_lat)
+        results[index] = sh.download_sar_roi(
+            bbox,
+            base_path=f"tmp/sar_{prov}_{side}_",
+            index=index,
+            time_interval=time_interval,
+            **download_kwargs,
+        )
+
+    return results
+
+
 def _str2bool(value) -> bool:
     """argparse helper: accepts 'true/false', 'yes/no', '1/0'."""
     if isinstance(value, bool):
@@ -420,6 +582,7 @@ def param_start(prov, sh=None):
 __all__ = [
     "SentinelHub",
     "download_province",
+    "download_sar_province",
     "format_for_fire_risk",
     "parse_params",
     "parse_start",

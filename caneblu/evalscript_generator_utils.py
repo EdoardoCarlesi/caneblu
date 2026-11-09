@@ -143,6 +143,25 @@ def get_evalscript(script, bands=None):
             }}
         """
 
+    elif script == "sar_vv_vh":
+        return """
+            function setup() {
+                return {
+                    input: [{
+                        bands: ["VV", "VH"]
+                    }],
+                    output: {
+                        bands: 2,
+                        sampleType: "FLOAT32"
+                    }
+                };
+            }
+
+            function evaluatePixel(sample) {
+                return [sample.VV, sample.VH];
+            }
+        """
+
     elif script == "cloud_mask":
         return """
             function setup() {
