@@ -438,14 +438,14 @@ arrays, files = sh.download_roi(
 # Run it again: existing .npy files are loaded instead of downloaded.
 ```
 
-**Example 5 – download one square of a province (network, needs a boundaries shapefile)**
+**Example 5 – download one square of a province (network)**
 
 `download_province` splits a province into square tiles (see `geocoding.generate_squares_for_province`)
-and downloads the requested tile range. Pass your own shapefile with `geo_file`. It must contain a
-`SIGLA` column with province codes.
+and downloads the requested tile range. The bundled province boundaries are used by default; pass your
+own shapefile with `geo_file` if needed. It must contain a `SIGLA` column with province codes.
 
 ```python
-# requires network, credentials and a province boundaries shapefile
+# requires network and credentials
 from caneblu.harvester import download_province
 
 results = download_province(
@@ -454,7 +454,6 @@ results = download_province(
     time_interval=("2025-06-15", "2025-06-30"),
     square_init=0,
     square_end=2,                           # tiles 0 and 1
-    geo_file="data/ProvCM_WGS84.shp",
     resolution=60,
     cloud_cover=10,
     data_type="fire_risk_bands_60m",
@@ -660,17 +659,13 @@ print(len(acireale), "squares")                      # 19
 If the name matches more than one area (e.g. `"Livo"`), it raises `ValueError`: pick one row with
 `get_admin_boundaries` and pass its geometry to `split_into_squares`.
 
-**Province squares with a boundaries file (needs your shapefile)**
+**Province squares by code (bundled data, writes a file)**
 
 ```python
-# requires a province boundaries shapefile with a SIGLA column (your own file)
 from caneblu.geocoding import generate_squares_for_province
 
-gdf = generate_squares_for_province(
-    prov="CT",
-    side=7200,
-    geo_file="data/ProvCM01012021_g_WGS84.shp",   # default path is the author's machine
-)
+# Uses the bundled province boundaries; pass geo_file= for your own shapefile with a SIGLA column
+gdf = generate_squares_for_province(prov="CT", side=7200)
 # Result is cached to data/CT_squares_7200.shp; later calls read the cache.
 print(len(gdf), "squares")
 ```
@@ -1085,8 +1080,8 @@ python -m caneblu.harvester -p CT -s 3600 -cc 10 -di 2025-06-15 -de 2025-06-30 \
 | `-se, --square_end` | Last square index (exclusive) | `1` |
 | `-dt, --data_type` | Evalscript name | `all_bands_10m` |
 
-The CLI reads the boundaries file from the default path in `geocoding.DEFAULT_PROVINCE_FILE`. Edit that
-constant, or call `download_province(..., geo_file=...)` from Python, to point it at your own file.
+The CLI uses the province boundaries bundled with the package (`geocoding.DEFAULT_PROVINCE_FILE`). To use
+your own file, call `download_province(..., geo_file=...)` from Python.
 
 ---
 
@@ -1094,8 +1089,6 @@ constant, or call `download_province(..., geo_file=...)` from Python, to point i
 
 - **`Warning: no Sentinel Hub credentials`** – set `SH_CLIENT_ID` and `SH_CLIENT_SECRET`, or pass them
   to `SentinelHub(...)`.
-- **`FileNotFoundError` for a province shapefile** – the default path belongs to the author's machine.
-  Pass `geo_file=` to `generate_squares_for_province` or `download_province`.
 - **Index values look wrong** – check the band-order table. `NDVI(img, i_red=2, i_nir=3)` is correct for
   `fire_risk_bands_60m`, but for `all_bands_10m` the red band is at index 0.
 - **`ImportError` for `ee`** – only `geocoding.bbox_from_address` needs `earthengine-api`.

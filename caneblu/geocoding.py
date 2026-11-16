@@ -336,10 +336,10 @@ def bbox_from_address(address: str, radius: float) -> tuple:
     return region_ee, poi_ee
 
 
-DEFAULT_PROVINCE_FILE = (
-    "/home/edoardo/DATA/confini_amministrativi/Limiti01012021_g/"
-    "ProvCM01012021_g/ProvCM01012021_g_WGS84.shp"
-)
+DATA_DIR = Path(__file__).resolve().parent / "data"
+
+# Province boundaries bundled with the package (ISTAT 01/01/2021)
+DEFAULT_PROVINCE_FILE = str(DATA_DIR / "province" / "ProvCM01012021_g_WGS84.shp")
 
 
 def generate_squares_for_province(prov: str, side: int, geo_file=None) -> gpd.GeoDataFrame:
@@ -349,7 +349,8 @@ def generate_squares_for_province(prov: str, side: int, geo_file=None) -> gpd.Ge
 
     :param prov: Province code (e.g., 'CT').
     :param side: Size of each square in meters.
-    :param geo_file: Shapefile with province boundaries (column 'SIGLA'). Defaults to DEFAULT_PROVINCE_FILE.
+    :param geo_file: Shapefile with province boundaries (column 'SIGLA'). Defaults to the bundled
+                     DEFAULT_PROVINCE_FILE.
     :return: GeoDataFrame containing the squares.
     """
     geo_file = geo_file or DEFAULT_PROVINCE_FILE
@@ -369,8 +370,6 @@ def generate_squares_for_province(prov: str, side: int, geo_file=None) -> gpd.Ge
 
     return gdf_boxes
 
-
-DATA_DIR = Path(__file__).resolve().parent / "data"
 
 # level -> (shapefile relative to DATA_DIR, name columns to match against)
 ADMIN_BOUNDARY_FILES = {

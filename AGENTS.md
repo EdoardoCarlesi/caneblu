@@ -22,7 +22,7 @@ Single package at repo root. `setup.py` maps `package_dir={"caneblu": "."}` — 
 | `utils.py` | Shared helpers (file I/O, time, dedup) |
 
 ## Important quirks
-- **Hardcoded paths** in `geocoding.py:349` (`/home/edoardo/DATA/confini_amministrativi/...`) and `open_meteo_api.py:260` (`/home/edoardo/DATA/SEFORE/...`).
+- **Bundled data**: ISTAT 2021 boundaries (regioni, province, comuni) live in `caneblu/data/` and ship via `package_data`.
 - **Sentinel Hub credentials** expected at `json/.sentinelhub_credentials.json` (relative to CWD at runtime).
 - **No tests, no CI, no lint/format/typecheck config.** Repo has zero verification pipeline.
 
