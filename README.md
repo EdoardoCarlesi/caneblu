@@ -149,7 +149,7 @@ print(len(data), "acquisitions;", files[0])
 | `evalscript_generator_utils` | Sentinel Hub evalscript strings | `get_evalscript(name, bands=None)` |
 | `harvester` | Sentinel Hub or Earth Search catalog search and downloads | `SentinelHub`, `download_province`, `format_for_fire_risk` |
 | `earth_search` | Key-less Sentinel-2 from the Earth Search STAC API (AWS) | `search`, `request_box` |
-| `geocoding` | Geometry, coordinates, squares, overlap checks | `split_into_squares`, `bbox_to_polygon`, `check_polygons_overlap`, `generate_squares_for_province` |
+| `geocoding` | Geometry, coordinates, squares, overlap checks | `get_admin_boundaries`, `split_into_squares`, `bbox_to_polygon`, `check_polygons_overlap`, `generate_squares_for_province` |
 | `satellite_image_utils` | GeoTIFF I/O, grayscale, feature tables, cropping | `tiff_to_png`, `create_features`, `save_numpy_to_geotiff`, `crop_tiff_with_polygon` |
 | `open_meteo_api` | Open-Meteo archive and forecast wrapper | `OpenMeteoAPI` |
 | `utils` | Filenames, JSON/GeoJSON I/O, time conversions | `npy_filename`, `read_json_file`, `time_to_utc` |
@@ -600,6 +600,28 @@ centre = zones.geometry.iloc[0].centroid        # a point in the same metric CRS
 hits = find_zones_within_radius(point=centre, radius=5000, geo_data=zones, crs="EPSG:32633")
 print(list(hits["name"]))                       # ['near']
 ```
+
+**Administrative boundaries of Italy (bundled data)**
+
+`get_admin_boundaries` returns the ISTAT 01/01/2021 boundaries of a regione, provincia or comune as a
+GeoDataFrame (EPSG:4326 by default). The shapefiles ship with the package, so no download is needed.
+Names are case-insensitive; a provincia can also be looked up by its two-letter code.
+
+```python
+from caneblu.geocoding import get_admin_boundaries
+
+sicilia = get_admin_boundaries("Sicilia", "regione")
+catania = get_admin_boundaries("CT", "provincia")          # same as "Catania"
+aglie = get_admin_boundaries("Agliè", "comune", crs="EPSG:32633")
+
+print(sicilia.total_bounds)                 # [11.93 35.49 15.65 38.81] (lon/lat)
+shape = catania.geometry.iloc[0]            # shapely (Multi)Polygon, e.g. for split_into_squares
+
+# Some comuni share a name: all matches are returned
+print(len(get_admin_boundaries("Livo", "comune")))   # 2 (Lombardia and Trentino)
+```
+
+An unknown name or a `level` other than `"regione"`, `"provincia"` or `"comune"` raises `ValueError`.
 
 **Split a province into squares (network-free, writes a file)**
 
@@ -1076,6 +1098,7 @@ caneblu/                       repository root
     open_meteo_api.py          Open-Meteo wrapper
     satellite_image_utils.py   rasters, features, cropping
     utils.py                   filenames, JSON, time helpers
+    data/                      ISTAT boundaries of regioni, province, comuni (shapefiles)
   example.py                   minimal download script (reads credentials from the environment)
   setup.py, requirements.txt, LICENSE, README.md
 ```
