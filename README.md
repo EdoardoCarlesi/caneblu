@@ -147,9 +147,9 @@ print(len(data), "acquisitions;", files[0])
 |---|---|---|
 | `composite_indices` | Spectral indices on NumPy arrays | `NDVI`, `NDWI`, `MNDWI`, `NBR`, `NDMI`, `NDCI`, `NDSI`, `MSI` |
 | `evalscript_generator_utils` | Sentinel Hub evalscript strings | `get_evalscript(name, bands=None)` |
-| `harvester` | Sentinel Hub or Earth Search catalog search and downloads | `SentinelHub`, `download_province`, `format_for_fire_risk` |
+| `harvester` | Sentinel Hub or Earth Search catalog search and downloads | `SentinelHub`, `download_area`, `format_for_fire_risk` |
 | `earth_search` | Key-less Sentinel-2 from the Earth Search STAC API (AWS) | `search`, `request_box` |
-| `geocoding` | Geometry, coordinates, squares, overlap checks | `get_admin_boundaries`, `generate_squares_for_admin_area`, `split_into_squares`, `bbox_to_polygon`, `check_polygons_overlap`, `generate_squares_for_province` |
+| `geocoding` | Geometry, coordinates, squares, overlap checks | `get_admin_boundaries`, `generate_squares_for_admin_area`, `split_into_squares`, `bbox_to_polygon`, `check_polygons_overlap` |
 | `satellite_image_utils` | GeoTIFF I/O, grayscale, feature tables, cropping | `tiff_to_png`, `create_features`, `save_numpy_to_geotiff`, `crop_tiff_with_polygon` |
 | `open_meteo_api` | Open-Meteo archive and forecast wrapper | `OpenMeteoAPI` |
 | `utils` | Filenames, JSON/GeoJSON I/O, time conversions | `npy_filename`, `read_json_file`, `time_to_utc` |
@@ -438,18 +438,18 @@ arrays, files = sh.download_roi(
 # Run it again: existing .npy files are loaded instead of downloaded.
 ```
 
-**Example 5 – download one square of a province (network)**
+**Example 5 – download squares of a regione, provincia or comune (network)**
 
-`download_province` splits a province into square tiles (see `geocoding.generate_squares_for_province`)
-and downloads the requested tile range. The bundled province boundaries are used by default; pass your
-own shapefile with `geo_file` if needed. It must contain a `SIGLA` column with province codes.
+`download_area` splits the area into square tiles (see `geocoding.generate_squares_for_admin_area`)
+and downloads the requested tile range. Files are written under `tmp/{level}_{name}_{side}_...`.
 
 ```python
 # requires network and credentials
-from caneblu.harvester import download_province
+from caneblu.harvester import download_area
 
-results = download_province(
-    prov="CT",
+results = download_area(
+    name="CT",                              # or e.g. "Sicilia" / "regione", "Acireale" / "comune"
+    level="provincia",
     side=3600,                              # square side in metres
     time_interval=("2025-06-15", "2025-06-30"),
     square_init=0,
@@ -485,8 +485,8 @@ arrays, files = sh.download_sar_roi(
 )
 ```
 
-To download a province in squares, use `download_sar_province(prov, side, time_interval, ...)`. It has
-the same arguments as `download_province`.
+To download an area in squares, call `download_area(..., sar=True)` with the same arguments as for
+Sentinel-2 (without `cloud_cover`). Files are then written under `tmp/sar_{level}_{name}_{side}_...`.
 
 **Example 6 – turn downloaded arrays into fire-risk layers (offline)**
 
@@ -623,7 +623,7 @@ print(len(get_admin_boundaries("Livo", "comune")))   # 2 (Lombardia and Trentino
 
 An unknown name or a `level` other than `"regione"`, `"provincia"` or `"comune"` raises `ValueError`.
 
-**Split a province into squares (network-free, writes a file)**
+**Split any polygon into squares (network-free, writes a file)**
 
 `split_into_squares` uses the Sentinel Hub UTM splitter and writes a shapefile. Run it on your own
 polygon:
@@ -658,17 +658,6 @@ print(len(acireale), "squares")                      # 19
 
 If the name matches more than one area (e.g. `"Livo"`), it raises `ValueError`: pick one row with
 `get_admin_boundaries` and pass its geometry to `split_into_squares`.
-
-**Province squares by code (bundled data, writes a file)**
-
-```python
-from caneblu.geocoding import generate_squares_for_province
-
-# Uses the bundled province boundaries; pass geo_file= for your own shapefile with a SIGLA column
-gdf = generate_squares_for_province(prov="CT", side=7200)
-# Result is cached to data/CT_squares_7200.shp; later calls read the cache.
-print(len(gdf), "squares")
-```
 
 **Addresses and reverse geocoding (network)**
 
@@ -1008,7 +997,7 @@ print(is_file_older_than("fresh.geojson", hours=1))   # False: the file was just
 ## End-to-end workflow
 
 A complete offline-ready pipeline for one tile, once data has been downloaded. Replace the random
-arrays with real downloads from `download_province` to run it on real data.
+arrays with real downloads from `download_area` to run it on real data.
 
 ```python
 import numpy as np
@@ -1059,16 +1048,17 @@ acquisitions, files = sh.download_roi(
 
 ## Command-line usage
 
-The harvester has a small CLI that downloads squares of a province:
+The harvester has a small CLI that downloads squares of a regione, provincia or comune:
 
 ```bash
-python -m caneblu.harvester -p CT -s 3600 -cc 10 -di 2025-06-15 -de 2025-06-30 \
+python -m caneblu.harvester -a CT -l provincia -s 3600 -cc 10 -di 2025-06-15 -de 2025-06-30 \
     -r 60 -m true -si 0 -se 2 -dt fire_risk_bands_60m
 ```
 
 | Flag | Meaning | Default |
 |---|---|---|
-| `-p, --province` | Province code | `CT` |
+| `-a, --area` (or `-p, --province`) | Area name or provincia code | `CT` |
+| `-l, --level` | `regione`, `provincia` or `comune` | `provincia` |
 | `-s, --side` | Square side in metres | `3600` |
 | `-cc, --cloud_cover` | Maximum cloud cover in percent | `50` |
 | `-di, --date_init` | Start date | `2021-07-01` |
@@ -1080,8 +1070,7 @@ python -m caneblu.harvester -p CT -s 3600 -cc 10 -di 2025-06-15 -de 2025-06-30 \
 | `-se, --square_end` | Last square index (exclusive) | `1` |
 | `-dt, --data_type` | Evalscript name | `all_bands_10m` |
 
-The CLI uses the province boundaries bundled with the package (`geocoding.DEFAULT_PROVINCE_FILE`). To use
-your own file, call `download_province(..., geo_file=...)` from Python.
+The CLI uses the boundaries bundled with the package (see `geocoding.get_admin_boundaries`).
 
 ---
 
@@ -1110,7 +1099,7 @@ caneblu/                       repository root
     composite_indices.py       spectral indices
     evalscript_generator_utils.py  Sentinel Hub evalscripts
     geocoding.py               polygons, coordinates, squares
-    harvester.py               SentinelHub client, download_province, CLI
+    harvester.py               SentinelHub client, download_area, CLI
     open_meteo_api.py          Open-Meteo wrapper
     satellite_image_utils.py   rasters, features, cropping
     utils.py                   filenames, JSON, time helpers

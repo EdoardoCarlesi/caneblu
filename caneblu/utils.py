@@ -1,7 +1,13 @@
 from datetime import datetime
 import json
 import os
+import re
 import time
+
+
+def safe_name(name: str) -> str:
+    """Make a place name usable in file names, e.g. "Bolzano/Bozen" -> "Bolzano_Bozen"."""
+    return re.sub(r"\W+", "_", name.strip()).strip("_")
 
 
 def npy_filename(base_path, index, date, res=60):
@@ -147,6 +153,7 @@ def utc_to_time(date_utc: int) -> tuple:
 HOURS_CACHE = 1
 
 __all__ = [
+    "safe_name",
     "npy_filename",
     "npy_mosaic_filename",
     "remove_duplicates_from_list",

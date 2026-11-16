@@ -7,15 +7,15 @@ inside the functions that need them, so importing this module stays fast.
 
 import os
 import random
-import re
 from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
-import pandas as pd
 from sentinelhub import BBox, UtmZoneSplitter
 from shapely.geometry import MultiPolygon, Point, Polygon
 from tqdm import tqdm
+
+from .utils import safe_name
 
 
 def split_into_squares(
@@ -338,39 +338,6 @@ def bbox_from_address(address: str, radius: float) -> tuple:
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
-# Province boundaries bundled with the package (ISTAT 01/01/2021)
-DEFAULT_PROVINCE_FILE = str(DATA_DIR / "province" / "ProvCM01012021_g_WGS84.shp")
-
-
-def generate_squares_for_province(prov: str, side: int, geo_file=None) -> gpd.GeoDataFrame:
-    """
-    Generate a set of squares for a given province name and square size in meters.
-    The result is cached to `data/{prov}_squares_{side}.shp` and reused on later calls.
-
-    :param prov: Province code (e.g., 'CT').
-    :param side: Size of each square in meters.
-    :param geo_file: Shapefile with province boundaries (column 'SIGLA'). Defaults to the bundled
-                     DEFAULT_PROVINCE_FILE.
-    :return: GeoDataFrame containing the squares.
-    """
-    geo_file = geo_file or DEFAULT_PROVINCE_FILE
-    file_out = f"data/{prov}_squares_{side}.shp"
-    os.makedirs("data", exist_ok=True)
-
-    if not os.path.exists(file_out):
-        gdf = gpd.read_file(geo_file)
-        gdf = gdf.to_crs("epsg:4326")
-        gdf_sel = gdf[gdf["SIGLA"] == prov]
-
-        this_shape = gdf_sel["geometry"].values[0]
-        gdf_boxes = split_into_squares(shape=this_shape, file_out=file_out, size=side)
-        gdf_boxes.to_file(file_out)
-    else:
-        gdf_boxes = gpd.read_file(file_out)
-
-    return gdf_boxes
-
-
 # level -> (shapefile relative to DATA_DIR, name columns to match against)
 ADMIN_BOUNDARY_FILES = {
     "regione": ("regioni/Reg01012021_g_WGS84.shp", ["DEN_REG"]),
@@ -422,8 +389,7 @@ def generate_squares_for_admin_area(name: str, level: str, side=5000, file_out=N
     :return: GeoDataFrame (EPSG:4326) with the squares covering the area.
     """
     if file_out is None:
-        safe_name = re.sub(r"\W+", "_", name.strip()).strip("_")
-        file_out = f"data/{level}_{safe_name}_squares_{side}.shp"
+        file_out = f"data/{level}_{safe_name(name)}_squares_{side}.shp"
 
     if os.path.exists(file_out):
         return gpd.read_file(file_out)
@@ -439,24 +405,6 @@ def generate_squares_for_admin_area(name: str, level: str, side=5000, file_out=N
     return split_into_squares(shape=gdf["geometry"].values[0], file_out=file_out, size=side)
 
 
-def test_generation(size=7200):
-    """Main, used for testing other function of this file"""
-    regione = "Sicilia"
-    provinces = ["CT", "PA", "RG", "AG", "SR", "ME", "TP", "EN", "CL"]
-    gdfs = []
-
-    for select in tqdm(provinces):
-        gdf_boxes = generate_squares_for_province(prov=select, side=size)
-        gdfs.append(gdf_boxes)
-
-    file_reg_out = f"data/{regione}_squares_{size}.shp"
-    full_gpd = pd.concat(gdfs)
-    full_gpd.to_file(file_reg_out)
-    print(
-        f"File for {regione} saved to {file_reg_out}. Total number of squares: {len(full_gpd)}"
-    )
-
-
 __all__ = [
     "split_into_squares",
     "bbox_utm_to_wgs84",
@@ -470,8 +418,6 @@ __all__ = [
     "find_zones_within_radius",
     "resample_within_polygon",
     "bbox_from_address",
-    "generate_squares_for_province",
-    "DEFAULT_PROVINCE_FILE",
     "get_admin_boundaries",
     "generate_squares_for_admin_area",
     "ADMIN_BOUNDARY_FILES",

@@ -16,7 +16,6 @@ from shapely.geometry import Polygon, mapping
 from shapely.ops import transform
 from tifffile import imread, imwrite
 
-from . import composite_indices as ci
 
 __all__ = [
     "gray_to_rgb",
@@ -36,9 +35,7 @@ __all__ = [
     "load_indices_in_area",
     "burned_mask",
     "show_images_side_by_side",
-    "format_for_fire_risk",
     "enhance_rgb_bands",
-    "rgbs_to_grays",
     "compare_arrays",
     "reshape_to_2d",
     "create_features",
@@ -410,27 +407,6 @@ def show_images_side_by_side(images, titles=None, cmap="viridis"):
     return plt
 
 
-def format_for_fire_risk(data, n_dates=3) -> tuple:
-    i_red, i_nir, i_swir, i_swir2 = 2, 3, 4, 5
-
-    ndvis, ndmis, rgbs_gray, nbrs, rgbs = [], [], [], [], []
-
-    for i in range(0, n_dates):
-        rgb = enhance_rgb_bands(data[0][i][:, :, [2, 1, 0]], factor=2.0)
-        rgb_gray = rgb_to_gray(data[0][i][:, :, 0:3])
-        ndvi = ci.NDVI(data[0][i], i_nir, i_red)
-        ndmi = ci.NDMI(data[0][i], i_swir, i_nir)
-        nbr = ci.NBR(data[0][i], i_swir2, i_nir)
-
-        rgbs.append(rgb)
-        rgbs_gray.append(rgb_gray)
-        ndvis.append(ndvi)
-        ndmis.append(ndmi)
-        nbrs.append(nbr)
-
-    return (ndvis, ndmis, rgbs_gray, nbrs, rgbs)
-
-
 def enhance_rgb_bands(image, factor=2.5):
     """Enhances an RGB image band-by-band with fixed numerical factors.
 
@@ -448,30 +424,6 @@ def enhance_rgb_bands(image, factor=2.5):
         enhanced_image[:, :, i] = enhanced_image[:, :, i] * factor
 
     return enhanced_image
-
-
-def rgbs_to_grays(rgb_images):
-    """Converts a list of RGB images to grayscale.
-
-    Args:
-      rgb_images: A list of RGB images, where each image is a NumPy array.
-
-    Returns:
-      A list of grayscale images, where each image is a NumPy array.
-    """
-
-    gray_images = []
-    for rgb_image in rgb_images:
-        # Convert NumPy array to PIL Image
-        pil_image = Image.fromarray(rgb_image.astype("uint8"), "RGB")
-
-        # Convert to grayscale
-        gray_image = pil_image.convert("L")
-
-        # Convert back to NumPy array
-        gray_images.append(np.array(gray_image))
-
-    return gray_images
 
 
 def compare_arrays(array1, array2):

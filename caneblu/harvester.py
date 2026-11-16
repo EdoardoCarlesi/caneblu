@@ -450,7 +450,7 @@ def format_for_fire_risk(data, n_dates=3) -> tuple:
 
     for i in range(0, n_dates):
         rgb_gray = siu.rgb_to_gray(data[i][:, :, 0:3])
-        ndvi = ci.NDVI(data[i], i_nir, i_red)
+        ndvi = ci.NDVI(data[i], i_red, i_nir)
         ndmi = ci.NDMI(data[i], i_swir, i_nir)
         nbr = ci.NBR(data[i], i_swir2, i_nir)
 
@@ -468,7 +468,11 @@ def parse_params() -> dict:
     parser = argparse.ArgumentParser(description="Sentinel Hub Data Harvesting")
 
     # List of arguments to be parsed
-    parser.add_argument("-p", "--province", type=str, dest="prov", default="CT")
+    parser.add_argument("-a", "--area", "-p", "--province", type=str, dest="area", default="CT")
+    parser.add_argument(
+        "-l", "--level", type=str, dest="level", default="provincia",
+        choices=["regione", "provincia", "comune"],
+    )
     parser.add_argument("-s", "--side", type=int, dest="side", default=3600)
     parser.add_argument(
         "-cc", "--cloud_cover", type=int, dest="cloud_cover", default=50
@@ -493,80 +497,50 @@ def parse_params() -> dict:
     return vars(args)
 
 
-def download_province(
-    prov,
+def download_area(
+    name,
+    level,
     side,
     time_interval,
     square_init=0,
     square_end=1,
     sh=None,
-    geo_file=None,
+    sar=False,
     **download_kwargs,
 ) -> dict:
     """
-    Download Sentinel Hub data for a range of squares covering a province.
+    Download data for a range of squares covering an Italian regione, provincia or comune.
 
-    The province is split into `side` x `side` metre squares (see
-    `geocoding.generate_squares_for_province`); squares `square_init` (inclusive)
-    to `square_end` (exclusive) are downloaded with `SentinelHub.download_roi`.
+    The area is split into `side` x `side` metre squares (see
+    `geocoding.generate_squares_for_admin_area`); squares `square_init` (inclusive)
+    to `square_end` (exclusive) are downloaded with `SentinelHub.download_roi`
+    (Sentinel-2) or, with `sar=True`, `SentinelHub.download_sar_roi` (Sentinel-1).
 
-    :param prov: Province code, e.g. "CT".
+    :param name: Area name or provincia code, e.g. "CT", "Sicilia", "Acireale".
+    :param level: One of 'regione', 'provincia', 'comune'.
     :param side: Square side length in metres.
     :param time_interval: (start, end) date strings, "YYYY-MM-DD".
     :param square_init: First square index to download.
     :param square_end: One past the last square index to download.
     :param sh: Optional existing `SentinelHub` instance (created if None).
-    :param geo_file: Optional path to the province boundaries shapefile.
-    :param download_kwargs: Extra keyword arguments forwarded to `download_roi`
-                            (e.g. resolution, cloud_cover, mosaic, data_type, base_path).
+    :param sar: Download Sentinel-1 SAR instead of Sentinel-2.
+    :param download_kwargs: Extra keyword arguments forwarded to the download method
+                            (e.g. resolution, cloud_cover, mosaic, data_type).
     :return: {square_index: (list_of_arrays, list_of_npy_files)}
     """
     from . import geocoding
 
-    squares = geocoding.generate_squares_for_province(prov=prov, side=side, geo_file=geo_file)
+    squares = geocoding.generate_squares_for_admin_area(name, level, side=side)
     sh = sh or SentinelHub()
+    download = sh.download_sar_roi if sar else sh.download_roi
+    prefix = "sar_" if sar else ""
 
     results = {}
     for index in range(square_init, square_end):
         bbox = squares.geometry.iloc[index].bounds  # (min_lon, min_lat, max_lon, max_lat)
-        results[index] = sh.download_roi(
+        results[index] = download(
             bbox,
-            base_path=f"tmp/{prov}_{side}_",
-            index=index,
-            time_interval=time_interval,
-            **download_kwargs,
-        )
-
-    return results
-
-
-def download_sar_province(
-    prov,
-    side,
-    time_interval,
-    square_init=0,
-    square_end=1,
-    sh=None,
-    geo_file=None,
-    **download_kwargs,
-) -> dict:
-    """
-    Sentinel-1 counterpart of `download_province`: same square tiling, but each square is
-    downloaded with `SentinelHub.download_sar_roi`.
-
-    :return: {square_index: (list_of_arrays, list_of_npy_files)}
-    """
-    from . import geocoding
-
-    squares = geocoding.generate_squares_for_province(prov=prov, side=side, geo_file=geo_file)
-    sh = sh or SentinelHub()
-
-    results = {}
-    for index in range(square_init, square_end):
-        bbox = squares.geometry.iloc[index].bounds  # (min_lon, min_lat, max_lon, max_lat)
-        results[index] = sh.download_sar_roi(
-            bbox,
-            base_path=f"tmp/sar_{prov}_{side}_",
+            base_path=f"tmp/{prefix}{level}_{utils.safe_name(name)}_{side}_",
             index=index,
             time_interval=time_interval,
             **download_kwargs,
@@ -583,12 +557,13 @@ def _str2bool(value) -> bool:
 
 
 def parse_start():
-    """Command-line entry point: `python -m caneblu.harvester -p CT -s 3600 ...`"""
+    """Command-line entry point: `python -m caneblu.harvester -a CT -l provincia -s 3600 ...`"""
 
     params = parse_params()
 
-    download_province(
-        prov=params["prov"],
+    download_area(
+        name=params["area"],
+        level=params["level"],
         side=params["side"],
         time_interval=(params["date_init"], params["date_end"]),
         square_init=params["square_init"],
@@ -601,17 +576,18 @@ def parse_start():
     )
 
 
-def param_start(prov, sh=None):
+def param_start(name, level="provincia", sh=None):
     """
-    Example pipeline: harvest one square of a province at 60 m resolution and
+    Example pipeline: harvest one square of an area at 60 m resolution and
     build the fire-risk feature table.
 
     :return: pandas DataFrame of features (see `satellite_image_utils.create_features`).
     """
     n_dates = 3
 
-    results = download_province(
-        prov=prov,
+    results = download_area(
+        name=name,
+        level=level,
         side=3600,
         time_interval=("2025-06-15", "2025-06-30"),
         square_init=0,
@@ -630,8 +606,7 @@ def param_start(prov, sh=None):
 
 __all__ = [
     "SentinelHub",
-    "download_province",
-    "download_sar_province",
+    "download_area",
     "format_for_fire_risk",
     "parse_params",
     "parse_start",
