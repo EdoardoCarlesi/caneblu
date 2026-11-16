@@ -7,6 +7,7 @@ inside the functions that need them, so importing this module stays fast.
 
 import os
 import random
+from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
@@ -368,6 +369,46 @@ def generate_squares_for_province(prov: str, side: int, geo_file=None) -> gpd.Ge
     return gdf_boxes
 
 
+DATA_DIR = Path(__file__).resolve().parent / "data"
+
+# level -> (shapefile relative to DATA_DIR, name columns to match against)
+ADMIN_BOUNDARY_FILES = {
+    "regione": ("regioni/Reg01012021_g_WGS84.shp", ["DEN_REG"]),
+    "provincia": ("province/ProvCM01012021_g_WGS84.shp", ["DEN_UTS", "SIGLA"]),
+    "comune": ("comuni/Com01012021_g_WGS84.shp", ["COMUNE"]),
+}
+
+
+def get_admin_boundaries(name: str, level: str, crs="epsg:4326") -> gpd.GeoDataFrame:
+    """
+    Return the administrative boundaries of an Italian regione, provincia or comune
+    (ISTAT 01/01/2021 boundaries shipped in the package `data/` folder).
+
+    :param name: Name to look up, case-insensitive (e.g. 'Sicilia', 'Catania' or 'CT', 'Acireale').
+    :param level: One of 'regione', 'provincia', 'comune'.
+    :param crs: CRS of the returned geometries. Defaults to WGS84 (EPSG:4326).
+    :return: GeoDataFrame with the matching row(s); more than one row if the name is ambiguous
+             (some comuni share the same name).
+    """
+    if level not in ADMIN_BOUNDARY_FILES:
+        raise ValueError(f"level must be one of {list(ADMIN_BOUNDARY_FILES)}, got {level!r}.")
+
+    rel_path, columns = ADMIN_BOUNDARY_FILES[level]
+    # The .dbf files are UTF-8 but ship without a .cpg, so the encoding must be explicit
+    gdf = gpd.read_file(DATA_DIR / rel_path, encoding="utf-8")
+
+    target = name.strip().casefold()
+    mask = np.zeros(len(gdf), dtype=bool)
+    for col in columns:
+        mask |= gdf[col].str.strip().str.casefold() == target
+
+    gdf_sel = gdf[mask]
+    if gdf_sel.empty:
+        raise ValueError(f"No {level} named {name!r} found in {rel_path}.")
+
+    return gdf_sel.to_crs(crs)
+
+
 def test_generation(size=7200):
     """Main, used for testing other function of this file"""
     regione = "Sicilia"
@@ -401,4 +442,7 @@ __all__ = [
     "bbox_from_address",
     "generate_squares_for_province",
     "DEFAULT_PROVINCE_FILE",
+    "get_admin_boundaries",
+    "ADMIN_BOUNDARY_FILES",
+    "DATA_DIR",
 ]
