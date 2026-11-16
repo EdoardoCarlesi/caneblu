@@ -7,6 +7,7 @@ inside the functions that need them, so importing this module stays fast.
 
 import os
 import random
+import re
 from pathlib import Path
 
 import geopandas as gpd
@@ -60,7 +61,7 @@ def bbox_utm_to_wgs84(bbox: BBox) -> Polygon:
     lat1 = bbox.max_y
 
     poly = Polygon([(lon0, lat0), (lon0, lat1), (lon1, lat1), (lon1, lat0)])
-    gdf_tmp = gpd.GeoDataFrame(geometry=[poly], crs="epsg:32633")
+    gdf_tmp = gpd.GeoDataFrame(geometry=[poly], crs=f"epsg:{bbox.crs.epsg}")
     gdf_new = gdf_tmp.to_crs("epsg:4326")
 
     return gdf_new["geometry"].values[0]
@@ -375,7 +376,7 @@ DATA_DIR = Path(__file__).resolve().parent / "data"
 ADMIN_BOUNDARY_FILES = {
     "regione": ("regioni/Reg01012021_g_WGS84.shp", ["DEN_REG"]),
     "provincia": ("province/ProvCM01012021_g_WGS84.shp", ["DEN_UTS", "SIGLA"]),
-    "comune": ("comuni/Com01012021_g_WGS84.shp", ["COMUNE"]),
+    "comune": ("comuni/Com01012021_g_WGS84.shp", ["COMUNE", "COMUNE_A"]),
 }
 
 
@@ -407,6 +408,36 @@ def get_admin_boundaries(name: str, level: str, crs="epsg:4326") -> gpd.GeoDataF
         raise ValueError(f"No {level} named {name!r} found in {rel_path}.")
 
     return gdf_sel.to_crs(crs)
+
+
+def generate_squares_for_admin_area(name: str, level: str, side=5000, file_out=None) -> gpd.GeoDataFrame:
+    """
+    Split an Italian regione, provincia or comune into squares of a given size.
+    The result is cached to `file_out` (default `data/{level}_{name}_squares_{side}.shp`)
+    and reused on later calls.
+
+    :param name: Name of the area, as accepted by `get_admin_boundaries` (e.g. 'Sicilia', 'CT', 'Acireale').
+    :param level: One of 'regione', 'provincia', 'comune'.
+    :param side: Size of each square in meters.
+    :param file_out: Shapefile where the squares are written.
+    :return: GeoDataFrame (EPSG:4326) with the squares covering the area.
+    """
+    if file_out is None:
+        safe_name = re.sub(r"\W+", "_", name.strip()).strip("_")
+        file_out = f"data/{level}_{safe_name}_squares_{side}.shp"
+
+    if os.path.exists(file_out):
+        return gpd.read_file(file_out)
+
+    gdf = get_admin_boundaries(name, level)
+    if len(gdf) > 1:
+        raise ValueError(
+            f"{len(gdf)} areas named {name!r} at level {level!r}; select one with "
+            "get_admin_boundaries and pass its geometry to split_into_squares."
+        )
+
+    os.makedirs(os.path.dirname(file_out) or ".", exist_ok=True)
+    return split_into_squares(shape=gdf["geometry"].values[0], file_out=file_out, size=side)
 
 
 def test_generation(size=7200):
@@ -443,6 +474,7 @@ __all__ = [
     "generate_squares_for_province",
     "DEFAULT_PROVINCE_FILE",
     "get_admin_boundaries",
+    "generate_squares_for_admin_area",
     "ADMIN_BOUNDARY_FILES",
     "DATA_DIR",
 ]

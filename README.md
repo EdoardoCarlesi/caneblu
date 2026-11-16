@@ -149,7 +149,7 @@ print(len(data), "acquisitions;", files[0])
 | `evalscript_generator_utils` | Sentinel Hub evalscript strings | `get_evalscript(name, bands=None)` |
 | `harvester` | Sentinel Hub or Earth Search catalog search and downloads | `SentinelHub`, `download_province`, `format_for_fire_risk` |
 | `earth_search` | Key-less Sentinel-2 from the Earth Search STAC API (AWS) | `search`, `request_box` |
-| `geocoding` | Geometry, coordinates, squares, overlap checks | `get_admin_boundaries`, `split_into_squares`, `bbox_to_polygon`, `check_polygons_overlap`, `generate_squares_for_province` |
+| `geocoding` | Geometry, coordinates, squares, overlap checks | `get_admin_boundaries`, `generate_squares_for_admin_area`, `split_into_squares`, `bbox_to_polygon`, `check_polygons_overlap`, `generate_squares_for_province` |
 | `satellite_image_utils` | GeoTIFF I/O, grayscale, feature tables, cropping | `tiff_to_png`, `create_features`, `save_numpy_to_geotiff`, `crop_tiff_with_polygon` |
 | `open_meteo_api` | Open-Meteo archive and forecast wrapper | `OpenMeteoAPI` |
 | `utils` | Filenames, JSON/GeoJSON I/O, time conversions | `npy_filename`, `read_json_file`, `time_to_utc` |
@@ -605,7 +605,8 @@ print(list(hits["name"]))                       # ['near']
 
 `get_admin_boundaries` returns the ISTAT 01/01/2021 boundaries of a regione, provincia or comune as a
 GeoDataFrame (EPSG:4326 by default). The shapefiles ship with the package, so no download is needed.
-Names are case-insensitive; a provincia can also be looked up by its two-letter code.
+Names are case-insensitive; a provincia can also be looked up by its two-letter code, and a comune by
+its alternative name (e.g. `"Bozen"` for Bolzano).
 
 ```python
 from caneblu.geocoding import get_admin_boundaries
@@ -636,6 +637,28 @@ area = box(15.0, 37.0, 15.3, 37.3)   # a polygon in EPSG:4326
 squares = split_into_squares(shape=area, file_out="data/area_squares.shp", size=5000)
 print(len(squares), "squares written")
 ```
+
+**Split a regione, provincia or comune into squares (bundled data, writes a file)**
+
+`generate_squares_for_admin_area` looks the area up with `get_admin_boundaries` and splits it with
+`split_into_squares`. Squares touching the boundary are kept, so the grid covers the whole area.
+
+```python
+from caneblu.geocoding import generate_squares_for_admin_area
+
+sicilia = generate_squares_for_admin_area("Sicilia", "regione", side=20000)
+print(len(sicilia), "squares")                       # 125
+# Result is cached to data/regione_Sicilia_squares_20000.shp; later calls read the cache.
+
+catania = generate_squares_for_admin_area("CT", "provincia", side=7200)
+acireale = generate_squares_for_admin_area(
+    "Acireale", "comune", side=2000, file_out="out/acireale_2km.shp"
+)
+print(len(acireale), "squares")                      # 19
+```
+
+If the name matches more than one area (e.g. `"Livo"`), it raises `ValueError`: pick one row with
+`get_admin_boundaries` and pass its geometry to `split_into_squares`.
 
 **Province squares with a boundaries file (needs your shapefile)**
 
